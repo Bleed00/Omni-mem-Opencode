@@ -111,26 +111,9 @@ If both work, `gh` is ready.
 
 ---
 
-## 2. Install opencode
+## 2. Verify claude-mem installation
 
-```bash
-npm install -g opencode-ai
-```
-
-If you don't have Node.js, install it from <https://nodejs.org> (LTS) and
-reopen the terminal.
-
-Check it works:
-
-```bash
-opencode --version
-```
-
----
-
-## 3. Install claude-mem
-
-### 3.1 Install the plugin
+### 2.1 Install the plugin
 
 ```bash
 npx -y @thedotmack/claude-mem install --ide opencode
@@ -141,7 +124,7 @@ This installs the opencode plugin
 (`~/.config/opencode/AGENTS.md`) and registers the `claude-mem` MCP server in
 the opencode config.
 
-### 3.2 Runtime helpers
+### 2.2 Runtime helpers
 
 The worker needs **Bun** and **uv/uvx**:
 
@@ -155,13 +138,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Then reopen the terminal and check: `bun --version` and `uvx --version`.
 
-### 3.3 Configure the provider
+### 2.3 Configure the provider
 
-claude-mem defaults to Claude (paid Anthropic account). This setup uses
-**OpenRouter** with a free model. The installer does not configure this, so you
-must do it by hand.
+claude-mem defaults to Claude (paid Anthropic account). If you want to use a free
+version through the openrouter API key you can create/edit this file:
 
 Create `~/.claude-mem/settings.json`:
+
+that should look like this in the end:
 
 ```json
 {
@@ -172,7 +156,7 @@ Create `~/.claude-mem/settings.json`:
 }
 ```
 
-Protect the file (it contains your API key):
+It is recommended to protect the file (as it contains your API key):
 
 ```bash
 chmod 600 ~/.claude-mem/settings.json
@@ -187,16 +171,16 @@ npx claude-mem status
 
 ---
 
-## 4. Install Omni-mem-Opencode
+## 3. Install Omni-mem-Opencode
 
-### 4.1 Clone the wrapper
+### 3.1 Clone the wrapper
 
 ```bash
 git clone https://github.com/Bleed00/Omni-mem-Opencode.git
 cd Omni-mem-Opencode
 ```
 
-### 4.2 Run the installer
+### 3.2 Run the installer
 
 ```bash
 bash scripts/install.sh
@@ -215,7 +199,7 @@ The installer guides you through 5 steps:
 5. **Commands** - creates `~/.local/bin/omni-push` and
    `~/.local/bin/omni-pull`.
 
-### 4.3 Sync
+### 3.3 Sync
 
 ```bash
 omni-pull   # import the memory from the data repo into THIS PC
