@@ -1,107 +1,85 @@
 # Omni-mem-Opencode
 
-Linux-first, two-way synchronization of **claude-mem** memory across multiple
-OpenCode installations.
-
-The project is split into two repositories:
-
-- **Wrapper repository**: code, installer, and documentation.
-- **Data repository**: private Git repository containing exported memory data.
-
-The local clone of the data repository is stored in `data/` inside the wrapper.
-The wrapper ignores that directory, so personal memory never enters the wrapper
-repository.
+Two-way synchronization of **claude-mem** memory across multiple OpenCode
+installations, on **Linux and Windows**.
 
 ```text
-OpenCode -> claude-mem worker -> Omni-mem Python CLI -> private data repository
+OpenCode -> claude-mem worker -> Omni-mem Python CLI -> private Git data repository
 ```
 
-## Current platform support
+Each machine exports its local claude-mem memory to a **private Git repository**
+and imports the merged memory of the other machines. The sync core is pure
+Python; only the service integration, config paths, launchers, and process
+handling differ per OS.
 
-The implementation targets **Linux with systemd user services** and **Windows
-with Task Scheduler**. The sync core is pure Python and shared between the two
-platforms; only the service integration, configuration paths, launchers, and
-process handling differ.
+## Quick install
+
+Run the installer from the wrapper directory. It asks a few questions, clones
+(or attaches) your private data repository, and sets up the automatic watcher.
+
+**Linux:**
+
+```bash
+git clone https://github.com/Bleed00/Omni-mem-Opencode.git
+cd Omni-mem-Opencode
+python3 -m omni_mem install
+```
+
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/Bleed00/Omni-mem-Opencode.git
+cd Omni-mem-Opencode
+pip install -e .
+python -m omni_mem install
+```
+
+> On Windows the `omni-mem`, `omni-push` and `omni-pull` commands come from
+> `pip install -e .`; on Linux the installer writes them to `~/.local/bin`.
+
+The install command is interactive:
+
+1. verifies Git, Python, `curl`, OpenCode, the claude-mem plugin and a running
+   worker;
+2. offers to create a **new** private data repository (requires `gh`) or attach
+   an **existing** one (always available);
+3. clones the data repository into `data/`;
+4. asks whether automatic synchronization should be enabled (and its
+   thresholds);
+5. asks whether to pull memory when OpenCode starts (startup pull);
+6. installs the watcher service and the OpenCode startup plugin.
+
+When the installer finishes you can start using it immediately:
+
+```bash
+omni-mem push          # export local memory to the data repository
+omni-mem pull          # import the data repository into the local worker
+omni-mem status        # show sync and service state
+```
 
 ## Prerequisites
 
-Install these components before running Omni-mem:
+Install these before running the installer:
 
-- OpenCode
-- claude-mem configured as an OpenCode plugin
-- A running claude-mem worker
-- Python 3.10 or newer
-- Git
-- GitHub CLI (`gh`); optional, required only to *create* a new data repository
-- `curl`
-- A private GitHub data repository, or permission to create one
+- **OpenCode**
+- **claude-mem** installed and configured as an OpenCode plugin
+- a running **claude-mem worker**
+- **Python** 3.10 or newer
+- **Git**
+- **`curl`**
+- **GitHub CLI (`gh`)** — optional; only needed to *create* a new data
+  repository. Without it you can still attach an existing one.
+- a **private GitHub data repository** (or permission to create one)
 
-## Configure GitHub CLI
-
-Omni-mem uses `gh` to create a private data repository. Install it using the
-method for your distribution:
+### Install OpenCode and claude-mem
 
 ```bash
-# Arch / CachyOS
-sudo pacman -S github-cli
-
-# Debian / Ubuntu
-sudo apt install gh
-
-# Fedora
-sudo dnf install gh
+opencode --version                                     # verify OpenCode
+npx -y @thedotmack/claude-mem install --ide opencode   # install claude-mem
 ```
 
-On Windows, `gh` is optional: `omni-mem install` offers to install it with
-`winget install GitHub.cli` and start `gh auth login`. If you decline, you can
-only attach an existing data repository. Install it manually if preferred:
-
-```powershell
-winget install GitHub.cli
-gh auth login
-```
-
-Official documentation: <https://cli.github.com>
-
-Authenticate the CLI:
-
-```bash
-gh auth login
-```
-
-Choose:
-
-1. `GitHub.com`
-2. `HTTPS`
-3. Browser authentication
-
-Verify the account:
-
-```bash
-```
-
-Optional: allow deletion of temporary repositories:
-
-```bash
-```
-
-The delete permission is not required for normal Omni-mem operation.
-
-## Install OpenCode and claude-mem
-
-Install OpenCode according to its official documentation, then verify it:
-
-```bash
-opencode --version
-```
-
-Install claude-mem for OpenCode:
-
-```bash
-npx -y @thedotmack/claude-mem install --ide opencode
-```
-
-Configure the claude-mem worker. This example uses OpenRouter:
+Configure the worker, for example with OpenRouter. Save as
+`~/.claude-mem/settings.json`:
 
 ```json
 {
@@ -112,7 +90,7 @@ Configure the claude-mem worker. This example uses OpenRouter:
 }
 ```
 
-Save it as `~/.claude-mem/settings.json`, then protect it:
+Protect it and start the worker:
 
 ```bash
 chmod 600 ~/.claude-mem/settings.json
@@ -120,131 +98,116 @@ npx claude-mem start
 npx claude-mem status
 ```
 
-## Install Omni-mem
+### Install GitHub CLI
 
-Clone the wrapper:
-
-```bash
-cd Omni-mem-Opencode
-```
-
-Run the Python installer:
+Used only to create a *new* data repository. Skip this if you will attach an
+existing repository.
 
 ```bash
-python3 -m omni_mem install
+# Arch / CachyOS
+sudo pacman -S github-cli
+
+# Debian / Ubuntu
+sudo apt install gh
+
+# Fedora
+sudo dnf install gh
+
+# Windows
+winget install GitHub.cli
 ```
 
-The installer:
+Then authenticate:
 
-1. Verifies Git, Python, curl, GitHub CLI, OpenCode, claude-mem, and the worker.
-2. Asks whether to create a new private data repository or attach an existing
-   one.
-3. Clones the data repository into `data/`.
-4. Asks whether automatic synchronization should be enabled.
-5. If enabled, asks how many new observations should trigger a push, the poll
-   interval, and the debounce interval.
-6. Installs `omni-mem`, `omni-push`, and `omni-pull` in `~/.local/bin`.
-7. Installs and starts a Linux `systemd --user` watcher when automatic sync is
-   enabled.
-8. Installs an OpenCode startup plugin that runs `omni-mem startup-pull` when
-   OpenCode starts, if startup pull is enabled.
-
-## Install Omni-mem on Windows
-
-The wrapper is installed as an editable package so `pip` generates the
-`omni-mem`, `omni-push`, and `omni-pull` console commands:
-
-```powershell
-# from the wrapper directory
-pip install -e .
-python -m omni_mem install
+```bash
+gh auth login
 ```
 
-The installer:
+Choose `GitHub.com`, `HTTPS`, and browser authentication.
 
-1. Verifies Git, Python, curl, OpenCode, claude-mem, and the worker; offers to
-   install `gh` (optional).
-2. Attaches an existing private data repository, or creates a new one when `gh`
-   is available.
-3. Clones the data repository into `data/`.
-4. Asks whether automatic synchronization should be enabled.
-5. If enabled, registers a Task Scheduler task (`omni-mem-watch`) that runs the
-   watcher hidden at logon via `pythonw.exe`, with automatic restart on crash
-   when registration succeeds. If the shell is not elevated and
-   `Register-ScheduledTask` is denied, the installer falls back to
-   `schtasks /Create` (works unelevated; the watcher then runs again at the
-   next logon instead of auto-restarting). Output is appended to
-   `%APPDATA%\omni-mem\watch.log`.
-6. Installs an OpenCode startup plugin that runs `omni-mem startup-pull` when
-   OpenCode starts, if startup pull is enabled.
+## Usage
 
-Windows notes:
-
-- The claude-mem worker port is discovered from `~/.claude-mem/worker.pid`
-  (or `supervisor.json`), not computed from the user id, because Windows has no
-  uid. A health-endpoint probe over `37700`–`37799` is the last-resort fallback.
-- `ExecutionPolicy` blocks `npm.ps1`/`npx.ps1`; the tool only invokes `.exe`
-  commands (`git`, `curl`, `gh`, `powershell`), so it is unaffected.
-- Configuration lives in `%APPDATA%\omni-mem\`, not `~/.config/omni-mem`.
-
-## Manual synchronization
+### Manual synchronization
 
 Export the local memory to the private data repository:
 
 ```bash
 omni-mem push
-omni-push
+omni-push          # alias
 ```
 
 Import the data repository into the local worker:
 
 ```bash
 omni-mem pull
-omni-pull
+omni-pull          # alias
 ```
 
-Both operations are idempotent. Re-running a pull does not create duplicate
-records.
+Both operations are idempotent: re-running a pull never creates duplicate
+records, and a push with nothing new produces no commit.
 
-## Automatic synchronization
-
-During installation, enable automatic synchronization and configure:
-
-- observations per push, for example `1`, `10`, or `30`;
-- polling interval in seconds;
-- debounce interval in seconds.
-
-The watcher starts from a baseline of the observations already present. This
-prevents installation from unexpectedly pushing the existing database. Run the
-first full export explicitly:
+Run the first full export explicitly right after installing, so the accumulated
+memory is available on every machine:
 
 ```bash
 omni-mem push
 ```
 
-After that, the watcher pushes when the configured number of new observations
-is reached. A failed push is retried during the next polling cycle.
+### Status
 
-The installer also asks whether to pull the data repository whenever OpenCode
-starts. This is implemented as a separate OpenCode plugin and includes retries
-while the claude-mem worker is still starting. It does not modify the
-claude-mem plugin.
+```bash
+omni-mem status
+```
+
+Shows whether the worker is reachable, the state of the local data repository,
+the automatic-sync configuration, and the watcher service status.
+
+## Automatic synchronization
+
+During installation, enable automatic sync and configure:
+
+- observations per push (e.g. `1`, `10`, `30`);
+- polling interval in seconds;
+- debounce interval in seconds.
+
+The watcher starts from a **baseline** of the observations already present, so
+installing never pushes the whole database unexpectedly. After the first manual
+`omni-mem push`, the watcher pushes automatically once the configured number of
+new observations is reached. A failed push is retried at the next polling
+cycle.
+
+The watcher is installed per platform:
+
+- **Linux**: a `systemd --user` service
+  (`omni-mem-watch.service`) with restart on failure.
+- **Windows**: a per-user **registry Run key** that launches the watcher hidden
+  at logon via `pythonw.exe`. It uses no elevated APIs, so it works on accounts
+  where Task Scheduler registration is blocked; as a trade-off it does not
+  auto-restart on crash (it starts again at the next logon). Output is appended
+  to `%APPDATA%\omni-mem\watch.log`.
+
+The installer also registers an OpenCode startup plugin that runs
+`omni-mem startup-pull` whenever OpenCode starts, with retries while the worker
+is still starting. It does not modify the claude-mem plugin.
 
 Useful commands:
 
 ```bash
-omni-mem status
-omni-mem watch
-omni-mem service status
-omni-mem service remove
-systemctl --user status omni-mem-watch.service
-journalctl --user -u omni-mem-watch.service -f
+omni-mem status                 # overall state incl. service
+omni-mem service status         # watcher service state
+omni-mem service remove         # stop and remove the watcher service
+omni-mem watch                  # run the watcher in the foreground
+omni-mem startup-pull           # test the startup pull manually
+systemctl --user status omni-mem-watch.service        # Linux service state
+journalctl --user -u omni-mem-watch.service -f        # Linux watcher logs
+Get-Content "$env:APPDATA\omni-mem\watch.log" -Tail 20   # Windows watcher log
 ```
 
-The startup pull can also be tested manually:
+## Uninstall
 
 ```bash
-omni-mem startup-pull
+omni-mem uninstall        # remove service, launchers, plugin and config
+omni-mem reinstall        # uninstall and run the installer again
 ```
 
 ## Data model and merge safety
@@ -258,7 +221,7 @@ summaries.json
 prompts.json
 ```
 
-Records are merged using stable cross-device keys rather than local SQLite
+Records are merged using **stable cross-device keys** instead of local SQLite
 numeric IDs:
 
 - sessions: platform plus content session ID;
@@ -268,33 +231,34 @@ numeric IDs:
 
 The first push exports the complete local knowledge base. Later pushes preserve
 the complete accumulated data while Git stores only the differences in each
-commit.
+commit. Deletions and edits are propagated through tombstones so every machine
+converges on the same state.
 
 ## Configuration
 
 The local Omni-mem configuration is stored at:
 
 ```text
-~/.config/omni-mem/config.json        # Linux
-%APPDATA%\omni-mem\config.json        # Windows
+~/.config/omni-mem/config.json       # Linux
+%APPDATA%\omni-mem\config.json       # Windows
 ```
 
 It contains local paths, the data repository URL, and automatic-sync settings.
 It does not contain API keys.
 
-Watcher state is stored separately in:
+Watcher state is stored separately at:
 
 ```text
-~/.config/omni-mem/watch-state.json   # Linux
-%APPDATA%\omni-mem\watch-state.json   # Windows
+~/.config/omni-mem/watch-state.json  # Linux
+%APPDATA%\omni-mem\watch-state.json  # Windows
 ```
 
 ## Security
 
-- Keep the data repository private. It contains prompts, observations, and
+- Keep the data repository **private**. It contains prompts, observations, and
   summaries from your sessions.
 - Never commit `~/.claude-mem/settings.json` or API keys.
-- Use `chmod 600 ~/.claude-mem/settings.json`.
+- Use `chmod 600 ~/.claude-mem/settings.json` (Linux).
 - The wrapper repository is safe to publish only after its Git history has been
   audited and no personal data has ever been committed.
 
@@ -304,7 +268,7 @@ Run the CLI directly from the wrapper:
 
 ```bash
 python3 -m omni_mem --help
-python3 -m py_compile omni_mem/*.py
+python3 -m unittest discover tests
 ```
 
 The runtime uses only the Python standard library and the system `git` and
@@ -316,7 +280,7 @@ The sync core (`data.py`, `sync.py`, `git.py`, `watcher.py`, the worker HTTP
 client) is platform-independent. Only these pieces differ per OS:
 
 - `service.py` dispatches to `service_linux.py` (systemd user services) or
-  `service_windows.py` (Task Scheduler via PowerShell).
+  `service_windows.py` (logon autostart via the per-user Run key).
 - `config.py` resolves `~/.config/omni-mem` on POSIX and `%APPDATA%\omni-mem` on
   Windows, and skips `chmod` on Windows.
 - `lock.py` checks process liveness with `os.kill(pid, 0)` on POSIX and
@@ -326,6 +290,8 @@ client) is platform-independent. Only these pieces differ per OS:
   a uid that does not exist on Windows.
 - `cli.py` generates POSIX symlink launchers or relies on pip console scripts on
   Windows, and hides console windows for background subprocesses.
+- `git.py` and `cli.py` run background subprocesses with
+  `CREATE_NO_WINDOW` on Windows so no console window flashes.
 
 The data format and worker API are platform-independent.
 
