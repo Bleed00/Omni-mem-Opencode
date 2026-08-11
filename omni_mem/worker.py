@@ -7,6 +7,7 @@ import json
 import os
 import sqlite3
 import urllib.request
+import urllib.error
 from pathlib import Path
 
 
@@ -51,8 +52,18 @@ class WorkerClient:
         request = urllib.request.Request(
             f"{self.base_url}{path}", data=body, headers=headers, method=method
         )
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return json.load(response)
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = exc.read().decode("utf-8", errors="replace").strip()
+            except OSError:
+                detail = ""
+            message = f"worker returned HTTP {exc.code}"
+            if detail:
+                message += f": {detail}"
+            raise RuntimeError(message) from exc
 
     def check(self) -> None:
         self.request("/api/health")
