@@ -169,8 +169,12 @@ The installer:
 3. Clones the data repository into `data/`.
 4. Asks whether automatic synchronization should be enabled.
 5. If enabled, registers a Task Scheduler task (`omni-mem-watch`) that runs the
-   watcher hidden at logon via `pythonw.exe`, with automatic restart on crash.
-   Its output is appended to `%APPDATA%\omni-mem\watch.log`.
+   watcher hidden at logon via `pythonw.exe`, with automatic restart on crash
+   when registration succeeds. If the shell is not elevated and
+   `Register-ScheduledTask` is denied, the installer falls back to
+   `schtasks /Create` (works unelevated; the watcher then runs again at the
+   next logon instead of auto-restarting). Output is appended to
+   `%APPDATA%\omni-mem\watch.log`.
 6. Installs an OpenCode startup plugin that runs `omni-mem startup-pull` when
    OpenCode starts, if startup pull is enabled.
 
