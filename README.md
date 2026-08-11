@@ -118,13 +118,7 @@ Clone the wrapper:
 cd Omni-mem-Opencode
 ```
 
-Run the Python installer through the compatibility bootstrap:
-
-```bash
-bash scripts/install.sh
-```
-
-Alternatively:
+Run the Python installer:
 
 ```bash
 python3 -m omni_mem install

@@ -17,7 +17,6 @@ def stable_key(kind: str, item: dict) -> str:
     if kind == "observations":
         return "\0".join(
             [
-                str(item.get("memory_session_id", "")),
                 str(item.get("title", "")),
                 str(item.get("created_at_epoch", "")),
             ]

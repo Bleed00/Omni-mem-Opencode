@@ -24,6 +24,21 @@ class DataKeyTests(unittest.TestCase):
         second = {**first, "id": 999}
         self.assertEqual(stable_key("observations", first), stable_key("observations", second))
 
+    def test_observation_key_ignores_regenerated_session_ids(self):
+        first = {
+            "id": 1,
+            "memory_session_id": "openrouter-opencode-ses_0145910a0ffeO8pjdXZgjmHv4J-1786443234938-1786456890955",
+            "title": "same title",
+            "created_at_epoch": 100,
+        }
+        second = {
+            "id": 2,
+            "memory_session_id": "openrouter-opencode-ses_0145910a0ffeO8pjdXZgjmHv4J-1786443234938-1786457075083",
+            "title": "same title",
+            "created_at_epoch": 100,
+        }
+        self.assertEqual(stable_key("observations", first), stable_key("observations", second))
+
     def test_different_observations_are_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)

@@ -107,15 +107,15 @@ def observation_fingerprints() -> set[str]:
     connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     try:
         rows = connection.execute(
-            "SELECT memory_session_id, title, created_at_epoch FROM observations"
+            "SELECT title, created_at_epoch FROM observations"
         ).fetchall()
-        return {observation_fingerprint(row[0], row[1], row[2]) for row in rows}
+        return {observation_fingerprint(row[0], row[1]) for row in rows}
     finally:
         connection.close()
 
 
-def observation_fingerprint(memory_session_id: str, title: str | None, created_at_epoch: int) -> str:
+def observation_fingerprint(title: str | None, created_at_epoch: int) -> str:
     value = json.dumps(
-        [memory_session_id, title or "", created_at_epoch], separators=(",", ":"), ensure_ascii=True
+        [title or "", created_at_epoch], separators=(",", ":"), ensure_ascii=True
     )
     return hashlib.sha256(value.encode()).hexdigest()

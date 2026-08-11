@@ -16,6 +16,8 @@ from .service import install as install_service
 from .service import remove as remove_service
 from .service import status as service_status
 from .sync import SyncEngine, status as sync_status
+from .uninstall import reinstall as reinstall_omni_mem
+from .uninstall import uninstall as uninstall_omni_mem
 from .watcher import watch
 from .worker import WorkerClient
 
@@ -287,6 +289,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("watch")
     sub.add_parser("startup-pull")
     sub.add_parser("status")
+    sub.add_parser("uninstall")
+    sub.add_parser("reinstall")
     service = sub.add_parser("service")
     service.add_argument("action", choices=("install", "remove", "status"))
     args = parser.parse_args(argv)
@@ -294,6 +298,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "install":
             return install()
+        if args.command == "uninstall":
+            return uninstall_omni_mem(remove_data=True, data_dir=WRAPPER_DIR / "data")
+        if args.command == "reinstall":
+            return reinstall_omni_mem(install)
         config = load_config()
         if args.command == "push":
             print(SyncEngine(config).push())
