@@ -1,9 +1,10 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from omni_mem.config import AutoSyncConfig, Config, load_config, save_config
+from omni_mem.config import AutoSyncConfig, Config, config_dir, load_config, save_config
 
 
 class ConfigTests(unittest.TestCase):
@@ -21,7 +22,17 @@ class ConfigTests(unittest.TestCase):
                 loaded = load_config()
             self.assertEqual(loaded.data_repo_url, config.data_repo_url)
             self.assertEqual(loaded.auto_sync.observations_per_push, 10)
-            self.assertEqual((config_dir / "config.json").stat().st_mode & 0o777, 0o600)
+            if os.name == "posix":
+                self.assertEqual((config_dir / "config.json").stat().st_mode & 0o777, 0o600)
+
+    def test_config_dir_uses_apdata_on_windows(self):
+        with patch("omni_mem.config.sys.platform", "win32"), patch.dict(
+            os.environ, {"APPDATA": "C:\\Users\\test\\AppData\\Roaming"}
+        ):
+            self.assertEqual(
+                str(config_dir()),
+                os.path.join("C:\\Users\\test\\AppData\\Roaming", "omni-mem"),
+            )
 
 
 if __name__ == "__main__":

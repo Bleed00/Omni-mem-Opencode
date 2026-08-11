@@ -26,17 +26,70 @@ def settings() -> dict:
         return {}
 
 
+def worker_data_dir() -> Path:
+    data_dir = settings().get("CLAUDE_MEM_DATA_DIR") or str(Path.home() / ".claude-mem")
+    return Path(data_dir).expanduser()
+
+
+def _port_from_worker_files() -> int | None:
+    """The worker records its active port in worker.pid / supervisor.json.
+
+    On Windows there is no uid, so the DEFAULT_PORT + uid%100 formula cannot be
+    trusted; the recorded port is authoritative. Also checked on POSIX first,
+    falling back to the uid formula only if nothing usable is found.
+    """
+    data_dir = worker_data_dir()
+    for name in ("worker.pid", "supervisor.json"):
+        path = data_dir / name
+        if not path.exists():
+            continue
+        try:
+            with path.open() as stream:
+                raw = json.load(stream)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(raw, dict):
+            continue
+        for key in ("port", "workerPort"):
+            value = raw.get(key)
+            if isinstance(value, int) and value > 0:
+                return value
+            if isinstance(value, str) and value.isdigit():
+                return int(value)
+    return None
+
+
+def _probe_health_port() -> int | None:
+    for port in range(DEFAULT_PORT, DEFAULT_PORT + 100):
+        try:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/health", timeout=0.3
+            ) as response:
+                if response.status == 200:
+                    return port
+        except Exception:
+            continue
+    return None
+
+
 def worker_port() -> int:
     configured = os.environ.get("CLAUDE_MEM_WORKER_PORT") or settings().get("CLAUDE_MEM_WORKER_PORT")
     if configured:
         return int(configured)
-    uid = os.getuid() if hasattr(os, "getuid") else 77
-    return DEFAULT_PORT + (uid % 100)
+    recorded = _port_from_worker_files()
+    if recorded:
+        return recorded
+    probed = _probe_health_port()
+    if probed:
+        return probed
+    if hasattr(os, "getuid"):
+        uid = os.getuid()
+        return DEFAULT_PORT + (uid % 100)
+    return DEFAULT_PORT
 
 
 def database_path() -> Path:
-    data_dir = settings().get("CLAUDE_MEM_DATA_DIR") or str(Path.home() / ".claude-mem")
-    return Path(data_dir).expanduser() / "claude-mem.db"
+    return worker_data_dir() / "claude-mem.db"
 
 
 class WorkerClient:
@@ -118,11 +171,22 @@ def delete_local_sessions(memory_session_ids: list[str]) -> int:
         connection.close()
 
 
+def _connect_read_only(path: Path) -> sqlite3.Connection:
+    """Open the claude-mem database without risking writes.
+
+    A `file:...?mode=ro` URI can break on Windows paths and against WAL
+    databases, so connect normally and enforce read-only per-connection.
+    """
+    connection = sqlite3.connect(str(path), timeout=30)
+    connection.execute("PRAGMA query_only = ON")
+    return connection
+
+
 def load_sessions() -> list[dict]:
     path = database_path()
     if not path.exists():
         return []
-    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    connection = _connect_read_only(path)
     connection.row_factory = sqlite3.Row
     try:
         rows = connection.execute(
@@ -139,7 +203,7 @@ def observation_fingerprints() -> set[str]:
     path = database_path()
     if not path.exists():
         return set()
-    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    connection = _connect_read_only(path)
     try:
         rows = connection.execute(
             "SELECT title, created_at_epoch FROM observations"

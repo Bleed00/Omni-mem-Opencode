@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
+from pathlib import Path
 
 from .config import Config, load_watch_state, save_watch_state
 from .sync import SyncEngine
@@ -13,7 +15,7 @@ def pending_observations(current: set[str], seen: set[str]) -> int:
     return len(current - seen)
 
 
-def watch(config: Config) -> None:
+def watch(config: Config, log_path: str | None = None) -> None:
     if not config.auto_sync.enabled:
         raise RuntimeError("automatic sync is disabled in the Omni-mem configuration")
     engine = SyncEngine(config)
@@ -30,6 +32,23 @@ def watch(config: Config) -> None:
         f"polling every {config.auto_sync.poll_interval_seconds:g}s",
         flush=True,
     )
+    log_file = None
+    if log_path:
+        log_file = Path(log_path)
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_file = log_file.open("a", buffering=1)
+    try:
+        if log_file is not None:
+            with contextlib.redirect_stdout(log_file), contextlib.redirect_stderr(log_file):
+                _watch_loop(config, engine, state)
+        else:
+            _watch_loop(config, engine, state)
+    finally:
+        if log_file is not None:
+            log_file.close()
+
+
+def _watch_loop(config: Config, engine: SyncEngine, state: dict) -> None:
     try:
         while True:
             seen = set(state.get("seen_observations", []))

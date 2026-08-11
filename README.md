@@ -18,9 +18,10 @@ OpenCode -> claude-mem worker -> Omni-mem Python CLI -> private data repository
 
 ## Current platform support
 
-The current implementation targets **Linux with systemd user services**. The
-core is Python and is intentionally being prepared for a future native Windows
-implementation, but Windows support is not enabled yet.
+The implementation targets **Linux with systemd user services** and **Windows
+with Task Scheduler**. The sync core is pure Python and shared between the two
+platforms; only the service integration, configuration paths, launchers, and
+process handling differ.
 
 ## Prerequisites
 
@@ -31,7 +32,7 @@ Install these components before running Omni-mem:
 - A running claude-mem worker
 - Python 3.10 or newer
 - Git
-- GitHub CLI (`gh`)
+- GitHub CLI (`gh`); optional, required only to *create* a new data repository
 - `curl`
 - A private GitHub data repository, or permission to create one
 
@@ -49,6 +50,15 @@ sudo apt install gh
 
 # Fedora
 sudo dnf install gh
+```
+
+On Windows, `gh` is optional: `omni-mem install` offers to install it with
+`winget install GitHub.cli` and start `gh auth login`. If you decline, you can
+only attach an existing data repository. Install it manually if preferred:
+
+```powershell
+winget install GitHub.cli
+gh auth login
 ```
 
 Official documentation: <https://cli.github.com>
@@ -139,6 +149,40 @@ The installer:
 8. Installs an OpenCode startup plugin that runs `omni-mem startup-pull` when
    OpenCode starts, if startup pull is enabled.
 
+## Install Omni-mem on Windows
+
+The wrapper is installed as an editable package so `pip` generates the
+`omni-mem`, `omni-push`, and `omni-pull` console commands:
+
+```powershell
+# from the wrapper directory
+pip install -e .
+python -m omni_mem install
+```
+
+The installer:
+
+1. Verifies Git, Python, curl, OpenCode, claude-mem, and the worker; offers to
+   install `gh` (optional).
+2. Attaches an existing private data repository, or creates a new one when `gh`
+   is available.
+3. Clones the data repository into `data/`.
+4. Asks whether automatic synchronization should be enabled.
+5. If enabled, registers a Task Scheduler task (`omni-mem-watch`) that runs the
+   watcher hidden at logon via `pythonw.exe`, with automatic restart on crash.
+   Its output is appended to `%APPDATA%\omni-mem\watch.log`.
+6. Installs an OpenCode startup plugin that runs `omni-mem startup-pull` when
+   OpenCode starts, if startup pull is enabled.
+
+Windows notes:
+
+- The claude-mem worker port is discovered from `~/.claude-mem/worker.pid`
+  (or `supervisor.json`), not computed from the user id, because Windows has no
+  uid. A health-endpoint probe over `37700`–`37799` is the last-resort fallback.
+- `ExecutionPolicy` blocks `npm.ps1`/`npx.ps1`; the tool only invokes `.exe`
+  commands (`git`, `curl`, `gh`, `powershell`), so it is unaffected.
+- Configuration lives in `%APPDATA%\omni-mem\`, not `~/.config/omni-mem`.
+
 ## Manual synchronization
 
 Export the local memory to the private data repository:
@@ -227,7 +271,8 @@ commit.
 The local Omni-mem configuration is stored at:
 
 ```text
-~/.config/omni-mem/config.json
+~/.config/omni-mem/config.json        # Linux
+%APPDATA%\omni-mem\config.json        # Windows
 ```
 
 It contains local paths, the data repository URL, and automatic-sync settings.
@@ -236,7 +281,8 @@ It does not contain API keys.
 Watcher state is stored separately in:
 
 ```text
-~/.config/omni-mem/watch-state.json
+~/.config/omni-mem/watch-state.json   # Linux
+%APPDATA%\omni-mem\watch-state.json   # Windows
 ```
 
 ## Security
@@ -260,15 +306,22 @@ python3 -m py_compile omni_mem/*.py
 The runtime uses only the Python standard library and the system `git` and
 `gh` commands.
 
-## Future Windows support
+## Platform-specific pieces
 
-Windows support is intentionally not enabled in this Linux-first version. The
-planned Windows implementation will reuse the Python sync core and replace
-only platform-specific pieces:
+The sync core (`data.py`, `sync.py`, `git.py`, `watcher.py`, the worker HTTP
+client) is platform-independent. Only these pieces differ per OS:
 
-- Windows Task Scheduler instead of systemd;
-- Windows configuration directories instead of XDG paths;
-- native launcher handling instead of Unix symlinks.
+- `service.py` dispatches to `service_linux.py` (systemd user services) or
+  `service_windows.py` (Task Scheduler via PowerShell).
+- `config.py` resolves `~/.config/omni-mem` on POSIX and `%APPDATA%\omni-mem` on
+  Windows, and skips `chmod` on Windows.
+- `lock.py` checks process liveness with `os.kill(pid, 0)` on POSIX and
+  `OpenProcess`/`GetExitCodeProcess` on Windows.
+- `worker.py` discovers the claude-mem worker port from `worker.pid`/
+  `supervisor.json`, then env/settings, then a health probe; it never relies on
+  a uid that does not exist on Windows.
+- `cli.py` generates POSIX symlink launchers or relies on pip console scripts on
+  Windows, and hides console windows for background subprocesses.
 
 The data format and worker API are platform-independent.
 

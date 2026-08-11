@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -32,6 +33,8 @@ class SyncLock:
 
 
 def _process_is_alive(pid: int) -> bool:
+    if sys.platform.startswith("win"):
+        return _windows_process_is_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -39,3 +42,22 @@ def _process_is_alive(pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def _windows_process_is_alive(pid: int) -> bool:
+    """Check a Windows process without os.kill (which is not supported on Windows)."""
+    import ctypes
+
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    STILL_ACTIVE = 259
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return False
+    try:
+        exit_code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return False
+        return exit_code.value == STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -30,30 +31,55 @@ def command_exists(name: str) -> bool:
     return shutil.which(name) is not None
 
 
+def creationflags() -> int:
+    return subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
+
+
 def run_command(command: list[str], check: bool = True) -> str:
-    result = subprocess.run(command, text=True, capture_output=True)
+    result = subprocess.run(command, text=True, capture_output=True, creationflags=creationflags())
     if check and result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
         raise RuntimeError(f"{' '.join(command)} failed: {detail}")
     return result.stdout.strip()
 
 
+def run_interactive(command: list[str]) -> None:
+    """Run a command with terminal prompts/consent visible (winget, gh auth login)."""
+    subprocess.run(command, check=False)
+
+
 def normalize_remote(url: str) -> str:
     return url.rstrip("/").removesuffix(".git")
 
 
-def verify_prerequisites() -> str:
-    if not sys.platform.startswith("linux"):
-        raise RuntimeError("this version currently supports Linux only")
-    for command in ("git", "python3", "curl", "gh"):
+def verify_prerequisites() -> tuple[str, bool]:
+    if sys.platform.startswith("linux"):
+        python_cmd = "python3"
+    elif sys.platform.startswith("win"):
+        python_cmd = "python"
+    else:
+        raise RuntimeError("unsupported platform")
+    for command in ("git", python_cmd, "curl"):
         if not command_exists(command):
             raise RuntimeError(f"required command not found: {command}")
     # gh auth status writes useful information to stderr, so verify with the
     # authenticated API instead of relying on its output.
-    try:
-        username = run_command(["gh", "api", "user", "-q", ".login"])
-    except RuntimeError as exc:
-        raise RuntimeError("gh is not authenticated; run 'gh auth login'") from exc
+    username = ""
+    gh_ok = False
+    if command_exists("gh"):
+        gh_ok = True
+        try:
+            username = run_command(["gh", "api", "user", "-q", ".login"])
+        except RuntimeError as exc:
+            raise RuntimeError("gh is not authenticated; run 'gh auth login'") from exc
+    else:
+        print("The GitHub CLI (gh) was not found.")
+        if ask_yes_no("Install gh now and start the login flow? [y/n] "):
+            install_gh()
+            username = run_command([find_gh(), "api", "user", "-q", ".login"])
+            gh_ok = True
+        else:
+            print("Continuing without gh: only attaching an EXISTING data repo is available.")
     if not command_exists("opencode") and not (
         (Path.home() / ".config" / "opencode").is_dir()
         or (Path.home() / ".opencode").is_dir()
@@ -66,7 +92,46 @@ def verify_prerequisites() -> str:
         WorkerClient().check()
     except Exception as exc:
         raise RuntimeError("claude-mem worker is unreachable; start it before installing") from exc
-    return username
+    return username, gh_ok
+
+
+def install_gh() -> None:
+    if sys.platform.startswith("win"):
+        print("Installing gh with winget...")
+        run_interactive(
+            [
+                "winget",
+                "install",
+                "--id",
+                "GitHub.cli",
+                "--accept-source-agreements",
+                "--accept-package-agreements",
+            ]
+        )
+        gh_bin = find_gh()
+        print("Starting gh authentication...")
+        run_interactive([gh_bin, "auth", "login"])
+        return
+    raise RuntimeError(
+        "Install gh with the package manager of your distribution, then re-run 'omni-mem install'."
+    )
+
+
+def find_gh() -> str:
+    """Locate gh after a winget install (PATH is only refreshed in new processes)."""
+    found = shutil.which("gh")
+    if found:
+        return found
+    for base_name in ("ProgramFiles", "ProgramFiles(x86)"):
+        base = os.environ.get(base_name)
+        if not base:
+            continue
+        candidate = Path(base) / "GitHub CLI" / "gh.exe"
+        if candidate.is_file():
+            return str(candidate)
+    raise RuntimeError(
+        "gh was installed but could not be located; restart the terminal and re-run 'omni-mem install'"
+    )
 
 
 def ask_nonempty(prompt: str) -> str:
@@ -111,11 +176,21 @@ def ask_yes_no(prompt: str) -> bool:
         print("Please answer y or n.")
 
 
-def create_or_select_data_repo(username: str, destination: Path) -> tuple[str, bool]:
-    choice = ask_nonempty("Create a NEW data repo or attach an EXISTING one? [new/existing] ").lower()
-    while choice not in {"new", "n", "existing", "e"}:
-        print("Please answer new or existing.")
-        choice = ask_nonempty("Create a NEW data repo or attach an EXISTING one? [new/existing] ").lower()
+def create_or_select_data_repo(
+    username: str, destination: Path, gh_ok: bool = True
+) -> tuple[str, bool]:
+    if gh_ok:
+        choice = ask_nonempty(
+            "Create a NEW data repo or attach an EXISTING one? [new/existing] "
+        ).lower()
+        while choice not in {"new", "n", "existing", "e"}:
+            print("Please answer new or existing.")
+            choice = ask_nonempty(
+                "Create a NEW data repo or attach an EXISTING one? [new/existing] "
+            ).lower()
+    else:
+        print("gh is unavailable; attaching an existing data repo only.")
+        choice = "existing"
 
     if choice in {"new", "n"}:
         name = ask_nonempty("Name of the new private data repo: ")
@@ -152,7 +227,9 @@ def create_or_select_data_repo(username: str, destination: Path) -> tuple[str, b
     return url, new_repo
 
 
-def write_launcher() -> Path:
+def write_launcher() -> Path | None:
+    if sys.platform.startswith("win"):
+        return None
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     launcher = BIN_DIR / "omni-mem"
     content = (
@@ -171,22 +248,44 @@ def write_launcher() -> Path:
     return launcher
 
 
+def ensure_windows_launcher() -> None:
+    """On Windows the omni-mem commands come from 'pip install -e .' console scripts."""
+    if not sys.platform.startswith("win"):
+        return
+    if command_exists("omni-mem"):
+        return
+    print("omni-mem command not found; installing the editable package...")
+    run_interactive([sys.executable, "-m", "pip", "install", "-e", str(WRAPPER_DIR)])
+    if not command_exists("omni-mem"):
+        raise RuntimeError(
+            "pip install failed; run 'pip install -e .' manually and re-run 'omni-mem install'"
+        )
+
+
+def launcher_command() -> str:
+    """Absolute path to the omni-mem executable for the OpenCode startup plugin."""
+    if sys.platform.startswith("win"):
+        resolved = shutil.which("omni-mem")
+        if not resolved:
+            raise RuntimeError("omni-mem command not found; run 'pip install -e .' first")
+        return str(Path(resolved))
+    return str(BIN_DIR / "omni-mem")
+
+
 def write_opencode_startup_plugin() -> Path:
     plugin_dir = Path.home() / ".config" / "opencode" / "plugins"
     plugin_dir.mkdir(parents=True, exist_ok=True)
     plugin = plugin_dir / "omni-mem.js"
+    command_js = json.dumps(launcher_command())
+    spawn_opts = "{\n    detached: true,\n    stdio: \"ignore\",\n    windowsHide: true,\n  }"
     plugin.write_text(
-        "import os from \"node:os\";\n"
         "import { spawn } from \"node:child_process\";\n\n"
         "let started = false;\n\n"
         "export default async function OmniMemStartup() {\n"
         "  if (started) return {};\n"
         "  started = true;\n"
-        "  const command = `${os.homedir()}/.local/bin/omni-mem`;\n"
-        "  const child = spawn(command, [\"startup-pull\"], {\n"
-        "    detached: true,\n"
-        "    stdio: \"ignore\",\n"
-        "  });\n"
+        f"  const command = {command_js};\n"
+        f"  const child = spawn(command, [\"startup-pull\"], {spawn_opts});\n"
         "  child.on(\"error\", () => {});\n"
         "  child.unref();\n"
         "  return {};\n"
@@ -211,11 +310,12 @@ def register_opencode_plugin() -> None:
 
 
 def install() -> int:
-    print("==> Omni-mem Linux installer")
-    username = verify_prerequisites()
+    print("==> Omni-mem installer")
+    ensure_windows_launcher()
+    username, gh_ok = verify_prerequisites()
     print(f"Prerequisites OK ({username})")
     data_dir = WRAPPER_DIR / "data"
-    url, _ = create_or_select_data_repo(username, data_dir)
+    url, _ = create_or_select_data_repo(username, data_dir, gh_ok)
 
     enabled = ask_yes_no("Enable automatic synchronization? [y/n] ")
     auto = AutoSyncConfig(enabled=enabled)
@@ -275,9 +375,16 @@ def startup_pull() -> int:
     return 1
 
 
+def launcher_path() -> Path | None:
+    if sys.platform.startswith("win"):
+        found = shutil.which("omni-mem")
+        return Path(found) if found else None
+    return BIN_DIR / "omni-mem"
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    program = Path(sys.argv[0]).name
+    program = Path(sys.argv[0]).stem
     if not argv and program in {"omni-push", "omni-pull"}:
         argv = [program.removeprefix("omni-")]
 
@@ -286,7 +393,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("install")
     sub.add_parser("push")
     sub.add_parser("pull")
-    sub.add_parser("watch")
+    watch_parser = sub.add_parser("watch")
+    watch_parser.add_argument("--log", default=None, help="append watch output to this file")
     sub.add_parser("startup-pull")
     sub.add_parser("status")
     sub.add_parser("uninstall")
@@ -308,13 +416,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "pull":
             print(json.dumps(SyncEngine(config).pull(), indent=2))
         elif args.command == "watch":
-            watch(config)
+            watch(config, args.log)
         elif args.command == "startup-pull":
             return startup_pull()
         elif args.command == "status":
             return print_status()
         elif args.command == "service":
-            launcher = BIN_DIR / "omni-mem"
+            launcher = launcher_path()
             if args.action == "install":
                 install_service(config, launcher)
             elif args.action == "remove":

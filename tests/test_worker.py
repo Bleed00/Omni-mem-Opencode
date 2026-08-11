@@ -1,0 +1,55 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from omni_mem.worker import _port_from_worker_files, worker_port
+
+
+class WorkerPortTests(unittest.TestCase):
+    def _dir_with_worker_pid(self, port: int) -> Path:
+        directory = Path(tempfile.mkdtemp())
+        (directory / "worker.pid").write_text(json.dumps({"pid": 123, "port": port}))
+        return directory
+
+    def test_port_from_worker_pid(self):
+        directory = self._dir_with_worker_pid(37777)
+        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+            self.assertEqual(_port_from_worker_files(), 37777)
+
+    def test_port_from_supervisor_json(self):
+        directory = Path(tempfile.mkdtemp())
+        (directory / "supervisor.json").write_text(
+            json.dumps({"status": "running", "port": 37781})
+        )
+        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+            self.assertEqual(_port_from_worker_files(), 37781)
+
+    def test_worker_pid_takes_precedence(self):
+        directory = Path(tempfile.mkdtemp())
+        (directory / "worker.pid").write_text(json.dumps({"pid": 1, "port": 37710}))
+        (directory / "supervisor.json").write_text(json.dumps({"port": 37799}))
+        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+            self.assertEqual(_port_from_worker_files(), 37710)
+
+    def test_missing_or_invalid_files_return_none(self):
+        directory = Path(tempfile.mkdtemp())
+        (directory / "worker.pid").write_text("not json")
+        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+            self.assertIsNone(_port_from_worker_files())
+
+    def test_empty_dir_returns_none(self):
+        directory = Path(tempfile.mkdtemp())
+        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+            self.assertIsNone(_port_from_worker_files())
+
+    def test_worker_port_prefers_recorded_over_uid(self):
+        with patch("omni_mem.worker._port_from_worker_files", return_value=37777), patch(
+            "omni_mem.worker._probe_health_port", return_value=None
+        ), patch("omni_mem.worker.os.getuid", return_value=5):
+            self.assertEqual(worker_port(), 37777)
+
+
+if __name__ == "__main__":
+    unittest.main()

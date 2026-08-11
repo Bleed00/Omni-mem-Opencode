@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from .service import remove as remove_service
 
 
 def launchers() -> list[Path]:
+    if sys.platform.startswith("win"):
+        return []
     bin_dir = Path.home() / ".local" / "bin"
     return [bin_dir / name for name in ("omni-mem", "omni-push", "omni-pull")]
 
@@ -47,7 +50,7 @@ def remove_config() -> None:
 
 
 def uninstall(remove_data: bool = False, data_dir: Path | None = None) -> None:
-    print("==> Stopping and removing systemd user service")
+    print("==> Stopping and removing automatic watcher service")
     remove_service()
     print("==> Removing launchers")
     remove_launchers()

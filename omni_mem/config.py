@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -13,8 +14,19 @@ APP_NAME = "omni-mem"
 
 
 def config_dir() -> Path:
+    if sys.platform.startswith("win"):
+        base = os.environ.get("APPDATA")
+        if base:
+            return Path(base).expanduser() / APP_NAME
+        return Path.home() / "AppData" / "Roaming" / APP_NAME
     base = os.environ.get("XDG_CONFIG_HOME")
     return Path(base).expanduser() / APP_NAME if base else Path.home() / ".config" / APP_NAME
+
+
+def restrict_permissions(path: Path) -> None:
+    """Restrict config file access; POSIX only (Windows uses ACLs, chmod makes files read-only)."""
+    if os.name == "posix":
+        path.chmod(0o600)
 
 
 def config_path() -> Path:
@@ -66,7 +78,7 @@ def save_config(config: Config) -> None:
         temp.write("\n")
         temp_path = Path(temp.name)
     temp_path.replace(path)
-    path.chmod(0o600)
+    restrict_permissions(path)
 
 
 def load_config() -> Config:
@@ -108,7 +120,7 @@ def save_watch_state(state: dict) -> None:
         temp.write("\n")
         temp_path = Path(temp.name)
     temp_path.replace(path)
-    path.chmod(0o600)
+    restrict_permissions(path)
 
 
 def get_last_exported() -> dict[str, list[str]]:
