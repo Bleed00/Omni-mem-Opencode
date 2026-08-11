@@ -101,6 +101,19 @@ class SyncEngine:
                 path,
                 sorted(merged.values(), key=lambda item: data.stable_key(kind, item)),
             )
+        # tombstones are monotonic: the union of local and remote always wins
+        try:
+            remote_tombstones_raw = git.run(
+                self.data_dir, "show", f"origin/main:{data.TOMBSTONE_FILE}"
+            )
+            remote_tombstones = json.loads(remote_tombstones_raw)
+        except (git.GitError, ValueError):
+            remote_tombstones = {}
+        if remote_tombstones:
+            merged_tombstones = data.merge_tombstones(
+                data.read_tombstones(self.data_dir), remote_tombstones
+            )
+            data.write_tombstones(self.data_dir, merged_tombstones)
         git.run(self.data_dir, "add", "-A", "--", "*.json")
         git.run(
             self.data_dir,

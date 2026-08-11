@@ -82,6 +82,41 @@ class WorkerClient:
     def import_data(self, payload: dict) -> dict:
         return self.request("/api/import", method="POST", payload=payload)
 
+    def delete(self, kind: str, record_id: int) -> bool:
+        """Delete a single record through the worker API.
+
+        Returns False when the record no longer exists (already gone).
+        """
+        endpoint = {"observations": "observation", "summaries": "summary", "prompts": "prompt"}.get(kind)
+        if endpoint is None:
+            raise ValueError(f"no worker delete endpoint for kind: {kind}")
+        try:
+            self.request(f"/api/{endpoint}/{record_id}", method="DELETE")
+            return True
+        except RuntimeError as exc:
+            if "404" in str(exc):
+                return False
+            raise
+
+
+def delete_local_sessions(memory_session_ids: list[str]) -> int:
+    """Delete SDK session rows directly, cascading to their records."""
+    if not memory_session_ids:
+        return 0
+    path = database_path()
+    if not path.exists():
+        return 0
+    connection = sqlite3.connect(str(path), timeout=30)
+    try:
+        cursor = connection.executemany(
+            "DELETE FROM sdk_sessions WHERE memory_session_id = ?",
+            [(memory_id,) for memory_id in memory_session_ids],
+        )
+        connection.commit()
+        return cursor.rowcount
+    finally:
+        connection.close()
+
 
 def load_sessions() -> list[dict]:
     path = database_path()

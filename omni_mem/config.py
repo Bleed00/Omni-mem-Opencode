@@ -109,3 +109,18 @@ def save_watch_state(state: dict) -> None:
         temp_path = Path(temp.name)
     temp_path.replace(path)
     path.chmod(0o600)
+
+
+def get_last_exported() -> dict[str, list[str]]:
+    """Stable keys exported on the last push, per record kind.
+
+    Used by the export to detect local deletions: a key present here but
+    missing from the current snapshot was deleted and must be tombstoned.
+    """
+    return load_watch_state().get("last_exported", {})
+
+
+def set_last_exported(keys_by_kind: dict[str, list[str]]) -> None:
+    state = load_watch_state()
+    state["last_exported"] = keys_by_kind
+    save_watch_state(state)

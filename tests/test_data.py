@@ -153,5 +153,109 @@ class DataKeyTests(unittest.TestCase):
         self.assertEqual(result["sessions"][0]["memory_session_id"], "brand-new-id")
 
 
+class TombstoneTests(unittest.TestCase):
+    def test_record_signature_ignores_id_and_memory_session_id(self):
+        from omni_mem.data import record_signature
+
+        base = {
+            "id": 1,
+            "memory_session_id": "regenerated-a",
+            "title": "same",
+            "text": "same content",
+            "created_at_epoch": 100,
+        }
+        same_elsewhere = {
+            "id": 999,
+            "memory_session_id": "regenerated-b",
+            "title": "same",
+            "text": "same content",
+            "created_at_epoch": 100,
+        }
+        changed = {**base, "text": "different content"}
+        self.assertEqual(record_signature("observations", base), record_signature("observations", same_elsewhere))
+        self.assertNotEqual(record_signature("observations", base), record_signature("observations", changed))
+
+    def test_tombstones_roundtrip_and_prune(self):
+        from omni_mem.data import read_tombstones, write_tombstones, prune_tombstoned
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            tombstones = {
+                "sessions": {"claude\0content-a"},
+                "observations": {stable_key("observations", {"title": "x", "created_at_epoch": 1})},
+                "summaries": set(),
+                "prompts": set(),
+            }
+            write_tombstones(path, tombstones)
+            self.assertEqual(len(read_tombstones(path)["observations"]), 1)
+            records = [
+                {"title": "x", "created_at_epoch": 1},
+                {"title": "y", "created_at_epoch": 2},
+            ]
+            pruned = prune_tombstoned(
+                "observations",
+                records,
+                {"sessions": set(), "observations": tombstones["observations"], "summaries": set(), "prompts": set()},
+            )
+            self.assertEqual(len(pruned), 1)
+            self.assertEqual(pruned[0]["title"], "y")
+
+    def test_merge_tombstones_returns_union(self):
+        from omni_mem.data import merge_tombstones
+
+        merged = merge_tombstones(
+            {"sessions": {"a"}, "observations": {"b"}, "summaries": set(), "prompts": set()},
+            {"sessions": {"a", "c"}, "observations": set(), "summaries": set(), "prompts": set()},
+        )
+        self.assertEqual(merged["sessions"], {"a", "c"})
+
+    def test_plan_deletions_detects_modification_and_tombstone(self):
+        from omni_mem.data import plan_deletions
+
+        payload_obs = {
+            "id": 10, "memory_session_id": "m", "title": "same",
+            "text": "new", "created_at_epoch": 100,
+        }
+        local_old = {
+            "id": 1, "memory_session_id": "m", "title": "same",
+            "text": "old", "created_at_epoch": 100,
+        }
+        local_same = {
+            "id": 2, "memory_session_id": "m", "title": "other",
+            "text": "same", "created_at_epoch": 200,
+        }
+        payload = {"sessions": [], "observations": [payload_obs], "summaries": [], "prompts": []}
+        local = {"sessions": [], "observations": [local_old, local_same], "summaries": [], "prompts": []}
+        tombstones = {"sessions": set(), "observations": set(), "summaries": set(), "prompts": set()}
+        plan = plan_deletions(payload, local, tombstones)
+        # same key (title+epoch) but different content -> local id deleted and re-imported
+        self.assertEqual(plan["observations"], [1])
+
+    def test_plan_deletions_skips_identical_records(self):
+        from omni_mem.data import plan_deletions
+
+        obs = {"id": 1, "memory_session_id": "m", "title": "same", "text": "same", "created_at_epoch": 100}
+        payload = {"sessions": [], "observations": [obs], "summaries": [], "prompts": []}
+        local = {"sessions": [], "observations": [obs], "summaries": [], "prompts": []}
+        tombstones = {"sessions": set(), "observations": set(), "summaries": set(), "prompts": set()}
+        plan = plan_deletions(payload, local, tombstones)
+        self.assertEqual(plan["observations"], [])
+
+    def test_plan_deletions_tombstoned_key_is_removed(self):
+        from omni_mem.data import plan_deletions
+
+        obs = {"id": 1, "memory_session_id": "m", "title": "gone", "created_at_epoch": 100}
+        payload = {"sessions": [], "observations": [], "summaries": [], "prompts": []}
+        local = {"sessions": [], "observations": [obs], "summaries": [], "prompts": []}
+        tombstones = {
+            "sessions": set(),
+            "observations": {stable_key("observations", obs)},
+            "summaries": set(),
+            "prompts": set(),
+        }
+        plan = plan_deletions(payload, local, tombstones)
+        self.assertEqual(plan["observations"], [1])
+
+
 if __name__ == "__main__":
     unittest.main()
