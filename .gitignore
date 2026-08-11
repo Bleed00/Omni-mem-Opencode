@@ -6,3 +6,6 @@
 # data/ is the LOCAL CLONE of the separate data repo (nested git repo).
 # The wrapper must not track it: the data lives in the data repo on GitHub.
 data/
+__pycache__/
+*.py[cod]
+*.egg-info/

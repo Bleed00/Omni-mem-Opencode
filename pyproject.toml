@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omni-mem-opencode"
+version = "0.2.0"
+description = "Cross-machine claude-mem synchronization for OpenCode"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Bleed00" }]
+dependencies = []
+
+[project.scripts]
+omni-mem = "omni_mem.cli:main"
+omni-push = "omni_mem.cli:main"
+omni-pull = "omni_mem.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["omni_mem*"]

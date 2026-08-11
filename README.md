@@ -1,151 +1,97 @@
 # Omni-mem-Opencode
 
-Two-way sync of **claude-mem** memory (observations, summaries, prompts,
-sessions) across multiple PCs, using a **private GitHub repo** as transport.
+Linux-first, two-way synchronization of **claude-mem** memory across multiple
+OpenCode installations.
 
-This project is a **wrapper**: it only contains code and instructions. **No
-personal data is tracked here.** The data lives in a **separate data repo**
-(private) on GitHub, whose local clone sits in the `data/` folder of this
-wrapper.
+The project is split into two repositories:
 
-```
-┌─ Omni-mem-Opencode (wrapper, code only) ───────────────┐
-│  README.md · install.sh · scripts/*                    │
-│  data/  ← local clone of the DATA REPO                 │
-│     ├── .git/                                          │
-│     ├── sessions.json  observations.json               │
-│     └── summaries.json  prompts.json                   │
-└───────────────┬────────────────────────────────────────┘
-                │  omni-push / omni-pull
-                ▼
-        github.com/<you>/<data-repo>   (private, storage)
+- **Wrapper repository**: code, installer, and documentation.
+- **Data repository**: private Git repository containing exported memory data.
+
+The local clone of the data repository is stored in `data/` inside the wrapper.
+The wrapper ignores that directory, so personal memory never enters the wrapper
+repository.
+
+```text
+OpenCode -> claude-mem worker -> Omni-mem Python CLI -> private data repository
 ```
 
-No external services (no cmem.ai Pro, no paid cloud): the data lives in your
-own repo, and only you can access it.
+## Current platform support
 
----
-
-## What it does
-
-- **`omni-push`** - exports this PC's claude-mem memory into the data repo
-  (observations, summaries, prompts, sessions).
-- **`omni-pull`** - imports the memory from the data repo into this PC's
-  worker.
-- The import is **idempotent**: claude-mem deduplicates by id, so re-running
-  never creates duplicates.
-- The export is a **union-merge by id**: entries from other PCs that are no
-  longer in the local worker are preserved, so every PC accumulates the full
-  knowledge base.
-
----
+The current implementation targets **Linux with systemd user services**. The
+core is Python and is intentionally being prepared for a future native Windows
+implementation, but Windows support is not enabled yet.
 
 ## Prerequisites
 
-On **every** PC:
+Install these components before running Omni-mem:
 
-- **opencode**
-- **claude-mem** as an opencode plugin, with the **worker running**
-- **git**, **python3**, **curl**
-- **GitHub CLI** (`gh`) authenticated - needed to create/attach the data repo
-- Access to the data repo (or permission to create one)
+- OpenCode
+- claude-mem configured as an OpenCode plugin
+- A running claude-mem worker
+- Python 3.10 or newer
+- Git
+- GitHub CLI (`gh`)
+- `curl`
+- A private GitHub data repository, or permission to create one
 
-> This project does **not** install opencode or claude-mem: it assumes they are
-> already working. It only wires up the synchronization.
+## Configure GitHub CLI
 
----
-
-## 1. GitHub CLI (gh)
-
-You need `gh` to create (or attach) the data repo. If you already used `gh`,
-skip to [checking](#check-gh).
-
-### Install gh
-
-Pick the way that fits your OS:
+Omni-mem uses `gh` to create a private data repository. Install it using the
+method for your distribution:
 
 ```bash
-# Linux (Debian/Ubuntu)
+# Arch / CachyOS
+sudo pacman -S github-cli
+
+# Debian / Ubuntu
 sudo apt install gh
 
-# Linux (Fedora)
+# Fedora
 sudo dnf install gh
-
-# macOS
-brew install gh
-
-# Windows
-winget install --id GitHub.cli
 ```
 
-Or follow the official guide: <https://cli.github.com>
+Official documentation: <https://cli.github.com>
 
-### Authenticate
+Authenticate the CLI:
 
 ```bash
 gh auth login
 ```
 
-Follow the prompts:
+Choose:
 
-1. Choose **GitHub.com**
-2. Choose **HTTPS**
-3. Authenticate via browser (recommended) or paste a token
+1. `GitHub.com`
+2. `HTTPS`
+3. Browser authentication
 
-### Give gh permission to delete repos (optional but recommended)
-
-Used later to clean up test repos:
+Verify the account:
 
 ```bash
-gh auth refresh -h github.com -s delete_repo
 ```
 
-### Check
+Optional: allow deletion of temporary repositories:
 
 ```bash
-gh api user -q .login     # prints your username, e.g. "alice"
-gh repo list              # lists your repos
 ```
 
-If both work, `gh` is ready.
+The delete permission is not required for normal Omni-mem operation.
 
----
+## Install OpenCode and claude-mem
 
-## 2. Verify claude-mem installation
+Install OpenCode according to its official documentation, then verify it:
 
-### 2.1 Install the plugin
+```bash
+opencode --version
+```
+
+Install claude-mem for OpenCode:
 
 ```bash
 npx -y @thedotmack/claude-mem install --ide opencode
 ```
 
-This installs the opencode plugin
-(`~/.config/opencode/plugins/claude-mem.js`), creates the memory context file
-(`~/.config/opencode/AGENTS.md`) and registers the `claude-mem` MCP server in
-the opencode config.
-
-### 2.2 Runtime helpers
-
-The worker needs **Bun** and **uv/uvx**:
-
-```bash
-# Bun (worker runtime)
-curl -fsSL https://bun.sh/install | bash
-
-# uv / uvx (Chroma, the vector search engine)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Then reopen the terminal and check: `bun --version` and `uvx --version`.
-
-### 2.3 Configure the provider
-
-claude-mem defaults to Claude (paid Anthropic account). If you want to use a free
-version through the openrouter API key you can create/edit this file:
-
-Create `~/.claude-mem/settings.json`:
-
-that should look like this in the end:
+Configure the claude-mem worker. This example uses OpenRouter:
 
 ```json
 {
@@ -156,139 +102,168 @@ that should look like this in the end:
 }
 ```
 
-It is recommended to protect the file (as it contains your API key):
+Save it as `~/.claude-mem/settings.json`, then protect it:
 
 ```bash
 chmod 600 ~/.claude-mem/settings.json
-```
-
-Start the worker and verify:
-
-```bash
 npx claude-mem start
 npx claude-mem status
 ```
 
----
+## Install Omni-mem
 
-## 3. Install Omni-mem-Opencode
-
-### 3.1 Clone the wrapper
+Clone the wrapper:
 
 ```bash
-git clone https://github.com/Bleed00/Omni-mem-Opencode.git
 cd Omni-mem-Opencode
 ```
 
-### 3.2 Run the installer
+Run the Python installer through the compatibility bootstrap:
 
 ```bash
 bash scripts/install.sh
 ```
 
-The installer guides you through 5 steps:
-
-1. **Check prerequisites** - opencode, claude-mem, running worker, `gh`, git,
-   python3, curl. It stops with an error if something is missing.
-2. **Choose the data repo** - either:
-   - **create a new one** (enter a name, it is created private via `gh`), or
-   - **attach an existing one** (enter the URL, it is verified).
-3. **Local clone** - the data repo is cloned into `data/` inside the wrapper.
-4. **Periodic auto-push** (optional) - if you confirm, choose an interval
-   (e.g. `30m`, `1h`, `2h`) and a systemd user timer is enabled.
-5. **Commands** - creates `~/.local/bin/omni-push` and
-   `~/.local/bin/omni-pull`.
-
-### 3.3 Sync
+Alternatively:
 
 ```bash
-omni-pull   # import the memory from the data repo into THIS PC
-omni-push   # export THIS PC's memory to the data repo
+python3 -m omni_mem install
 ```
 
-Run them from any directory.
+The installer:
 
----
+1. Verifies Git, Python, curl, GitHub CLI, OpenCode, claude-mem, and the worker.
+2. Asks whether to create a new private data repository or attach an existing
+   one.
+3. Clones the data repository into `data/`.
+4. Asks whether automatic synchronization should be enabled.
+5. If enabled, asks how many new observations should trigger a push, the poll
+   interval, and the debounce interval.
+6. Installs `omni-mem`, `omni-push`, and `omni-pull` in `~/.local/bin`.
+7. Installs and starts a Linux `systemd --user` watcher when automatic sync is
+   enabled.
 
-## How it works
+## Manual synchronization
 
-### Export -> data repo (`omni-push`)
+Export the local memory to the private data repository:
 
-1. Reads the claude-mem worker (HTTP `127.0.0.1:<port>`) and downloads **all**
-   observations, summaries and prompts (pagination of 100).
-2. Reads the local DB (`~/.claude-mem/claude-mem.db`, read-only) to export the
-   **sessions** (`sdk_sessions`) and to enrich summaries with their
-   `memory_session_id` (otherwise the import would fail).
-3. Writes `data/sessions.json`, `data/observations.json`,
-   `data/summaries.json`, `data/prompts.json` with a **union-merge by id**.
-4. `git commit` locally, then `git pull --rebase`, then `git push` to the data
-   repo.
+```bash
+omni-mem push
+omni-push
+```
 
-### Data repo -> local import (`omni-pull`)
+Import the data repository into the local worker:
 
-1. `git pull` in the data repo.
-2. Sends `data/*.json` to the worker with `POST /api/import`.
+```bash
+omni-mem pull
+omni-pull
+```
 
-### Worker port
+Both operations are idempotent. Re-running a pull does not create duplicate
+records.
 
-Detected automatically: `CLAUDE_MEM_WORKER_PORT` from
-`~/.claude-mem/settings.json`, otherwise the default `37700 + (uid % 100)`.
-On typical installs it is `37700`.
+## Automatic synchronization
 
----
+During installation, enable automatic synchronization and configure:
 
-## Project organization
+- observations per push, for example `1`, `10`, or `30`;
+- polling interval in seconds;
+- debounce interval in seconds.
 
-- **opencode** -> everything lands under the project `"opencode"` (the plugin
-  uses `project?.name || "opencode"`, and opencode does not expose a project
-  name, so it is always the fallback). Consistent across PCs.
-- **Manual memories** -> use the explicit project name (e.g. `VCU_2026`),
-  preserved by the sync and queryable per project.
+The watcher starts from a baseline of the observations already present. This
+prevents installation from unexpectedly pushing the existing database. Run the
+first full export explicitly:
 
----
+```bash
+omni-mem push
+```
 
-## Security & privacy
+After that, the watcher pushes when the configured number of new observations
+is reached. A failed push is retried during the next polling cycle.
 
-- The **data repo** is **private**: only you (and anyone you invite) can read
-  it. It contains your session texts - **never make it public**.
-- The wrapper repo contains no personal data.
-- `~/.claude-mem/settings.json` (with your API key) is never touched or
-  uploaded. Keep it at `600`:
-  ```bash
-  chmod 600 ~/.claude-mem/settings.json
-  ```
+Useful commands:
 
----
+```bash
+omni-mem status
+omni-mem watch
+omni-mem service status
+omni-mem service remove
+systemctl --user status omni-mem-watch.service
+journalctl --user -u omni-mem-watch.service -f
+```
 
-## Windows support
+## Data model and merge safety
 
-Current scripts are **bash** and target Linux/macOS. On Windows the supported
-paths are **Git Bash** (ships with Git for Windows) or **WSL**.
+The data repository contains:
 
-Known limitations on Windows:
+```text
+sessions.json
+observations.json
+summaries.json
+prompts.json
+```
 
-- The **auto-push timer** uses `systemctl --user` (systemd), which is not
-  available on native Windows - use Task Scheduler or WSL instead.
-- `~/.local/bin` and symlink-based command installation assume a Unix-like
-  shell.
-- `readlink -f` is available in Git Bash and WSL.
+Records are merged using stable cross-device keys rather than local SQLite
+numeric IDs:
 
-A portable Python-based verifier/configurator is a possible future improvement
-(see roadmap in the repo issues).
+- sessions: platform plus content session ID;
+- observations: memory session, title, and creation timestamp;
+- summaries: memory session ID;
+- prompts: platform, content session ID, and prompt number.
 
----
+The first push exports the complete local knowledge base. Later pushes preserve
+the complete accumulated data while Git stores only the differences in each
+commit.
 
-## Limitations
+## Configuration
 
-- **Never two `omni-push` at the same time**: it uses `pull --rebase`, but if
-  two PCs push together the merge may need attention.
-- The "cold" memory (the Chroma vector index) is **not** synced: it regenerates
-  itself from the DB.
-- Observations/summaries/prompts carry absolute paths from the PC that produced
-  them (`files_read`, `files_modified`): those paths may not exist on the
-  destination PC, but the content remains searchable.
+The local Omni-mem configuration is stored at:
 
----
+```text
+~/.config/omni-mem/config.json
+```
+
+It contains local paths, the data repository URL, and automatic-sync settings.
+It does not contain API keys.
+
+Watcher state is stored separately in:
+
+```text
+~/.config/omni-mem/watch-state.json
+```
+
+## Security
+
+- Keep the data repository private. It contains prompts, observations, and
+  summaries from your sessions.
+- Never commit `~/.claude-mem/settings.json` or API keys.
+- Use `chmod 600 ~/.claude-mem/settings.json`.
+- The wrapper repository is safe to publish only after its Git history has been
+  audited and no personal data has ever been committed.
+
+## Development
+
+Run the CLI directly from the wrapper:
+
+```bash
+python3 -m omni_mem --help
+python3 -m py_compile omni_mem/*.py
+```
+
+The runtime uses only the Python standard library and the system `git` and
+`gh` commands.
+
+## Future Windows support
+
+Windows support is intentionally not enabled in this Linux-first version. The
+planned Windows implementation will reuse the Python sync core and replace
+only platform-specific pieces:
+
+- Windows Task Scheduler instead of systemd;
+- Windows configuration directories instead of XDG paths;
+- native launcher handling instead of Unix symlinks.
+
+The data format and worker API are platform-independent.
 
 ## License
 
