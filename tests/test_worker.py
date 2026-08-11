@@ -1,5 +1,6 @@
 import json
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -45,9 +46,13 @@ class WorkerPortTests(unittest.TestCase):
             self.assertIsNone(_port_from_worker_files())
 
     def test_worker_port_prefers_recorded_over_uid(self):
+        # Windows lacks os.getuid, so stub the whole module attribute.
+        fake_os = types.SimpleNamespace(environ={}, getuid=lambda: 5)
         with patch("omni_mem.worker._port_from_worker_files", return_value=37777), patch(
             "omni_mem.worker._probe_health_port", return_value=None
-        ), patch("omni_mem.worker.os.getuid", return_value=5):
+        ), patch("omni_mem.worker.os", fake_os), patch(
+            "omni_mem.worker.settings", return_value={}
+        ):
             self.assertEqual(worker_port(), 37777)
 
 
