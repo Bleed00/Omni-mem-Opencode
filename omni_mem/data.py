@@ -125,8 +125,69 @@ def export_snapshot(worker: WorkerClient, data_dir: Path) -> dict[str, int]:
     return {kind: len(items) for kind, items in records.items()}
 
 
+def reconcile_sessions_with_db(payload: dict) -> dict:
+    """Align payload session ids with the local database before importing.
+
+    The worker dedupes sessions by (platform_source, content_session_id), but
+    sdk_sessions.memory_session_id is UNIQUE and referenced by observations and
+    summaries. When the payload carries a stale memory id for a session the
+    local database already knows under a different id, the worker skips the
+    session and the subsequent FK insert of its observations fails. Rewrite the
+    payload so every memory_session_id matches what the local database expects,
+    and drop payload sessions that would collide on the UNIQUE memory id.
+    """
+    local = load_sessions()
+    db_by_content = {
+        (row.get("platform_source") or "claude", row.get("content_session_id")): row.get(
+            "memory_session_id"
+        )
+        for row in local
+    }
+    db_by_memory = {row.get("memory_session_id") for row in local}
+
+    sessions = payload.get("sessions") or []
+    renamed: dict[str, str] = {}
+    kept: list[dict] = []
+    for session in sessions:
+        content = session.get("content_session_id")
+        if not content:
+            continue
+        key = (session.get("platform_source") or "claude", content)
+        mid = session.get("memory_session_id")
+        local_id = db_by_content.get(key)
+        if local_id:
+            if mid and mid != local_id:
+                renamed[mid] = local_id
+                session["memory_session_id"] = local_id
+            elif not mid:
+                session["memory_session_id"] = local_id
+            kept.append(session)
+        elif mid in db_by_memory:
+            # This memory id is already claimed by another content session on
+            # this machine; importing the row would violate the UNIQUE index.
+            renamed[mid] = mid
+        else:
+            kept.append(session)
+    payload["sessions"] = kept
+
+    for kind in ("observations", "summaries"):
+        for item in payload.get(kind) or []:
+            mid = item.get("memory_session_id")
+            if mid in renamed:
+                item["memory_session_id"] = renamed[mid]
+    return payload
+
+
 def import_snapshot(worker: WorkerClient, data_dir: Path) -> dict:
     payload = {kind: read_records(data_dir / f"{kind}.json") for kind in (
         "sessions", "observations", "summaries", "prompts"
     )}
+    payload = reconcile_sessions_with_db(payload)
+    known = {row.get("memory_session_id") for row in load_sessions()}
+    orphans = [
+        item
+        for item in (payload.get("observations") or []) + (payload.get("summaries") or [])
+        if item.get("memory_session_id") and item["memory_session_id"] not in known
+    ]
+    payload["sessions"] = add_placeholder_sessions(payload.get("sessions") or [], orphans)
     return worker.import_data(payload)
