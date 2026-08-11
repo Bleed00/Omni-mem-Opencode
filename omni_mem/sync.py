@@ -53,7 +53,7 @@ class SyncEngine:
                 stashed = True
             try:
                 if git.has_head(self.data_dir):
-                    git.run(self.data_dir, "pull", "--rebase", "--quiet", "origin", "main")
+                    self.pull_with_recovery()
             finally:
                 if stashed:
                     git.run(self.data_dir, "stash", "pop", "--quiet")

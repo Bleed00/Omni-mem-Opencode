@@ -142,6 +142,8 @@ The installer:
 6. Installs `omni-mem`, `omni-push`, and `omni-pull` in `~/.local/bin`.
 7. Installs and starts a Linux `systemd --user` watcher when automatic sync is
    enabled.
+8. Installs an OpenCode startup plugin that runs `omni-mem startup-pull` when
+   OpenCode starts, if startup pull is enabled.
 
 ## Manual synchronization
 
@@ -181,6 +183,11 @@ omni-mem push
 After that, the watcher pushes when the configured number of new observations
 is reached. A failed push is retried during the next polling cycle.
 
+The installer also asks whether to pull the data repository whenever OpenCode
+starts. This is implemented as a separate OpenCode plugin and includes retries
+while the claude-mem worker is still starting. It does not modify the
+claude-mem plugin.
+
 Useful commands:
 
 ```bash
@@ -190,6 +197,12 @@ omni-mem service status
 omni-mem service remove
 systemctl --user status omni-mem-watch.service
 journalctl --user -u omni-mem-watch.service -f
+```
+
+The startup pull can also be tested manually:
+
+```bash
+omni-mem startup-pull
 ```
 
 ## Data model and merge safety

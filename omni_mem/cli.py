@@ -7,9 +7,10 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-from .config import AutoSyncConfig, Config, load_config, save_config
+from .config import AutoSyncConfig, Config, StartupPullConfig, load_config, save_config
 from .git import GitError, clone
 from .service import install as install_service
 from .service import remove as remove_service
@@ -168,6 +169,45 @@ def write_launcher() -> Path:
     return launcher
 
 
+def write_opencode_startup_plugin() -> Path:
+    plugin_dir = Path.home() / ".config" / "opencode" / "plugins"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    plugin = plugin_dir / "omni-mem.js"
+    plugin.write_text(
+        "import os from \"node:os\";\n"
+        "import { spawn } from \"node:child_process\";\n\n"
+        "let started = false;\n\n"
+        "export default async function OmniMemStartup() {\n"
+        "  if (started) return {};\n"
+        "  started = true;\n"
+        "  const command = `${os.homedir()}/.local/bin/omni-mem`;\n"
+        "  const child = spawn(command, [\"startup-pull\"], {\n"
+        "    detached: true,\n"
+        "    stdio: \"ignore\",\n"
+        "  });\n"
+        "  child.on(\"error\", () => {});\n"
+        "  child.unref();\n"
+        "  return {};\n"
+        "}\n"
+    )
+    return plugin
+
+
+def register_opencode_plugin() -> None:
+    config_path = Path.home() / ".config" / "opencode" / "opencode.json"
+    if not config_path.exists():
+        return
+    with config_path.open() as stream:
+        config = json.load(stream)
+    plugins = config.get("plugin", [])
+    if isinstance(plugins, str):
+        plugins = [plugins]
+    if "./plugins/omni-mem.js" not in plugins:
+        plugins.append("./plugins/omni-mem.js")
+    config["plugin"] = plugins
+    config_path.write_text(json.dumps(config, indent=2) + "\n")
+
+
 def install() -> int:
     print("==> Omni-mem Linux installer")
     username = verify_prerequisites()
@@ -184,9 +224,19 @@ def install() -> int:
         auto.poll_interval_seconds = ask_positive_float("Polling interval in seconds [5]: ", 5)
         auto.debounce_seconds = ask_positive_float("Push debounce in seconds [10]: ", 10)
 
-    config = Config(str(WRAPPER_DIR), str(data_dir), url, auto)
+    startup_enabled = ask_yes_no("Pull memory automatically when OpenCode starts? [y/n] ")
+    startup = StartupPullConfig(enabled=startup_enabled)
+    if startup_enabled:
+        startup.retry_attempts = ask_positive_int("Startup pull retry attempts [12]: ", 12)
+        startup.retry_delay_seconds = ask_positive_float(
+            "Startup pull retry delay in seconds [5]: ", 5
+        )
+
+    config = Config(str(WRAPPER_DIR), str(data_dir), url, auto, startup)
     save_config(config)
     launcher = write_launcher()
+    write_opencode_startup_plugin()
+    register_opencode_plugin()
     if enabled:
         install_service(config, launcher)
     else:
@@ -205,6 +255,24 @@ def print_status() -> int:
     return 0
 
 
+def startup_pull() -> int:
+    config = load_config()
+    if not config.startup_pull.enabled:
+        return 0
+    last_error: Exception | None = None
+    for attempt in range(1, config.startup_pull.retry_attempts + 1):
+        try:
+            result = SyncEngine(config).pull()
+            print(json.dumps(result, indent=2))
+            return 0
+        except Exception as exc:
+            last_error = exc
+            if attempt < config.startup_pull.retry_attempts:
+                time.sleep(config.startup_pull.retry_delay_seconds)
+    print(f"ERROR: startup pull failed after retries: {last_error}", file=sys.stderr)
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     program = Path(sys.argv[0]).name
@@ -217,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("push")
     sub.add_parser("pull")
     sub.add_parser("watch")
+    sub.add_parser("startup-pull")
     sub.add_parser("status")
     service = sub.add_parser("service")
     service.add_argument("action", choices=("install", "remove", "status"))
@@ -232,6 +301,8 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(SyncEngine(config).pull(), indent=2))
         elif args.command == "watch":
             watch(config)
+        elif args.command == "startup-pull":
+            return startup_pull()
         elif args.command == "status":
             return print_status()
         elif args.command == "service":

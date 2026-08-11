@@ -41,7 +41,8 @@ def install(config: Config, launcher: Path) -> None:
         "WantedBy=default.target\n"
     )
     subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-    subprocess.run(["systemctl", "--user", "enable", "--now", SERVICE_NAME], check=True)
+    subprocess.run(["systemctl", "--user", "enable", SERVICE_NAME], check=True)
+    subprocess.run(["systemctl", "--user", "restart", SERVICE_NAME], check=True)
 
 
 def remove() -> None:

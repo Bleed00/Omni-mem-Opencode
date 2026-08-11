@@ -34,11 +34,19 @@ class AutoSyncConfig:
 
 
 @dataclass
+class StartupPullConfig:
+    enabled: bool = True
+    retry_attempts: int = 12
+    retry_delay_seconds: float = 5.0
+
+
+@dataclass
 class Config:
     wrapper_dir: str
     data_repo_dir: str
     data_repo_url: str = ""
     auto_sync: AutoSyncConfig = field(default_factory=AutoSyncConfig)
+    startup_pull: StartupPullConfig = field(default_factory=StartupPullConfig)
 
     @property
     def wrapper_path(self) -> Path:
@@ -68,11 +76,13 @@ def load_config() -> Config:
     with path.open() as stream:
         raw = json.load(stream)
     auto = AutoSyncConfig(**raw.get("auto_sync", {}))
+    startup = StartupPullConfig(**raw.get("startup_pull", {}))
     return Config(
         wrapper_dir=raw["wrapper_dir"],
         data_repo_dir=raw["data_repo_dir"],
         data_repo_url=raw.get("data_repo_url", ""),
         auto_sync=auto,
+        startup_pull=startup,
     )
 
 
