@@ -34,6 +34,10 @@ def has_head(repo: Path) -> bool:
     ).returncode == 0
 
 
+def ref(repo: Path, name: str) -> str:
+    return run(repo, "rev-parse", name)
+
+
 def clone(url: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(["git", "clone", url, str(destination)], text=True)
