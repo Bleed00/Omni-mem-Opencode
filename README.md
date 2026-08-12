@@ -37,6 +37,11 @@ python -m omni_mem install
 > On Windows the `omni-mem`, `omni-push` and `omni-pull` commands come from
 > `pip install -e .`; on Linux the installer writes them to `~/.local/bin`.
 
+> The terminal UI uses `rich` and `questionary`. If they are missing the
+> installer installs them automatically (or runs in plain-text mode when `pip`
+> is not available, e.g. a PEP 668 managed Python — use a virtual environment
+> to get the full UI).
+
 The install command is interactive:
 
 1. verifies Git, Python, `curl`, OpenCode, the claude-mem plugin and a running
@@ -264,6 +269,18 @@ Watcher state is stored separately at:
 
 ## Development
 
+Install the package (editable) to get the interactive CLI and its UI
+dependencies (`rich` and `questionary`):
+
+```bash
+python3 -m pip install -e .
+```
+
+When the dependencies are missing, `omni-mem install` bootstraps them by
+installing the editable package automatically; if `pip` is unavailable (for
+example a PEP 668 managed Python on some distributions) it continues in plain
+text mode and suggests installing in a virtual environment.
+
 Run the CLI directly from the wrapper:
 
 ```bash
@@ -271,8 +288,8 @@ python3 -m omni_mem --help
 python3 -m unittest discover tests
 ```
 
-The runtime uses only the Python standard library and the system `git` and
-`gh` commands.
+The runtime uses the Python standard library plus `rich` and `questionary`
+for the terminal UI, and the system `git` and `gh` commands.
 
 ## Platform-specific pieces
 

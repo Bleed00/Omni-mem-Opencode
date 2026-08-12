@@ -12,13 +12,17 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import winreg
 from pathlib import Path
 
 from .config import Config, config_dir
 
 TASK_NAME = "omni-mem-watch"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+try:
+    import winreg
+except ImportError:  # pragma: no cover - Windows only; None keeps the module importable elsewhere
+    winreg = None  # type: ignore[assignment]
 
 
 def pythonw_path() -> str:
@@ -43,6 +47,10 @@ def install(config: Config, launcher: Path | None) -> None:
         winreg.SetValueEx(key, TASK_NAME, 0, winreg.REG_SZ, run_command_line())
 
 
+def _creationflags() -> int:
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def remove() -> None:
     try:
         with _run_key(winreg.KEY_SET_VALUE) as key:
@@ -55,7 +63,7 @@ def remove() -> None:
         shell=False,
         check=False,
         capture_output=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
+        creationflags=_creationflags(),
     )
 
 
