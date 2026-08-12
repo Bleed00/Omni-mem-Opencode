@@ -4,13 +4,13 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import MagicMock, patch
 
-from omni_mem import ui
+from omni_mem import ui_rich as ui
 
 
-class UiPlainOutputTests(unittest.TestCase):
+class RichPlainOutputTests(unittest.TestCase):
     def _capture(self, func) -> str:
         buffer = io.StringIO()
-        with patch("omni_mem.ui._get_console", return_value=None), redirect_stdout(buffer):
+        with patch("omni_mem.ui_rich._get_console", return_value=None), redirect_stdout(buffer):
             func()
         return buffer.getvalue()
 
@@ -45,7 +45,7 @@ class UiPlainOutputTests(unittest.TestCase):
         self.assertIn("ERROR: boom", out)
 
 
-class UiFallbackPromptTests(unittest.TestCase):
+class RichFallbackPromptTests(unittest.TestCase):
     def test_fallback_confirm_yes(self):
         with patch("builtins.input", return_value="y"):
             self.assertTrue(ui._fallback_confirm("Enable?", False))
@@ -80,12 +80,7 @@ class UiFallbackPromptTests(unittest.TestCase):
             )
 
 
-class UiQuestionaryPathTests(unittest.TestCase):
-    def _questionary_mock(self):
-        mock_q = MagicMock()
-        with patch.dict(sys.modules, {"questionary": mock_q}):
-            yield mock_q
-
+class RichQuestionaryPathTests(unittest.TestCase):
     def test_ask_int_uses_questionary_with_validate(self):
         mock_q = MagicMock()
         with patch.dict(sys.modules, {"questionary": mock_q}):
@@ -122,7 +117,7 @@ class UiQuestionaryPathTests(unittest.TestCase):
                 ui.ask_confirm("Enable?")
 
 
-class UiValidatorTests(unittest.TestCase):
+class RichValidatorTests(unittest.TestCase):
     def test_positive_int(self):
         self.assertIs(ui._positive_int("5"), True)
         self.assertIsInstance(ui._positive_int("0"), str)

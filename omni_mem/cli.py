@@ -77,22 +77,23 @@ def normalize_remote(url: str) -> str:
 
 
 def ensure_bootstrap() -> None:
-    """Install the editable package when UI dependencies (or the Windows launcher) are missing."""
+    """On Windows, install the editable package when commands or UI deps are missing.
+
+    Linux and other platforms use the zero-dependency ANSI UI and the launchers
+    written by ``omni-mem install``, so nothing needs to be installed here.
+    """
+    if not sys.platform.startswith("win"):
+        return
     try:
         import rich  # noqa: F401
         import questionary  # noqa: F401
     except ImportError:
-        missing = True
+        deps_ok = False
     else:
-        missing = sys.platform.startswith("win") and not command_exists("omni-mem")
-
-    if not missing:
+        deps_ok = True
+    if deps_ok and command_exists("omni-mem"):
         return
-
-    if sys.platform.startswith("win") and not command_exists("omni-mem"):
-        note("Installing the omni-mem commands...")
-    else:
-        note("Installing Omni-mem UI dependencies...")
+    note("Installing omni-mem commands and UI dependencies...")
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "-e", str(WRAPPER_DIR)],
         text=True,
@@ -101,13 +102,9 @@ def ensure_bootstrap() -> None:
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
         warn("could not install UI dependencies; continuing in plain mode", detail)
-        note(
-            "To enable the full UI, install the package in a virtual environment "
-            "(e.g. 'python -m venv .venv && .venv/bin/pip install -e .') and re-run."
-        )
         return
     reset_cache()
-    if sys.platform.startswith("win") and not command_exists("omni-mem"):
+    if not command_exists("omni-mem"):
         raise RuntimeError(
             "pip install succeeded but omni-mem was not found; restart the terminal and re-run"
         )

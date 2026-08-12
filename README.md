@@ -37,10 +37,10 @@ python -m omni_mem install
 > On Windows the `omni-mem`, `omni-push` and `omni-pull` commands come from
 > `pip install -e .`; on Linux the installer writes them to `~/.local/bin`.
 
-> The terminal UI uses `rich` and `questionary`. If they are missing the
-> installer installs them automatically (or runs in plain-text mode when `pip`
-> is not available, e.g. a PEP 668 managed Python — use a virtual environment
-> to get the full UI).
+> The terminal UI differs by platform: **Windows** uses `rich` and
+> `questionary` (installed by `pip install -e .`); **Linux** uses a
+> zero-dependency ANSI UI, so no pip package or virtual environment is needed
+> there.
 
 The install command is interactive:
 
@@ -269,27 +269,26 @@ Watcher state is stored separately at:
 
 ## Development
 
-Install the package (editable) to get the interactive CLI and its UI
-dependencies (`rich` and `questionary`):
-
-```bash
-python3 -m pip install -e .
-```
-
-When the dependencies are missing, `omni-mem install` bootstraps them by
-installing the editable package automatically; if `pip` is unavailable (for
-example a PEP 668 managed Python on some distributions) it continues in plain
-text mode and suggests installing in a virtual environment.
-
-Run the CLI directly from the wrapper:
+On **Linux** the CLI runs from the wrapper with no installation:
 
 ```bash
 python3 -m omni_mem --help
 python3 -m unittest discover tests
 ```
 
-The runtime uses the Python standard library plus `rich` and `questionary`
-for the terminal UI, and the system `git` and `gh` commands.
+On **Windows**, install the package (editable) to get the `omni-mem`,
+`omni-push` and `omni-pull` commands and the `rich`/`questionary` UI:
+
+```powershell
+pip install -e .
+```
+
+`omni-mem install` bootstraps this automatically on Windows when the commands
+or the UI dependencies are missing.
+
+The runtime uses the Python standard library, plus `rich` and `questionary`
+for the Windows terminal UI (Linux uses a zero-dependency ANSI UI), and the
+system `git` and `gh` commands.
 
 ## Platform-specific pieces
 
@@ -305,6 +304,8 @@ client) is platform-independent. Only these pieces differ per OS:
 - `worker.py` discovers the claude-mem worker port from `worker.pid`/
   `supervisor.json`, then env/settings, then a health probe; it never relies on
   a uid that does not exist on Windows.
+- `ui.py` dispatches to `ui_rich.py` (rich + questionary, Windows) or
+  `ui_ansi.py` (zero-dependency ANSI, Linux).
 - `cli.py` generates POSIX symlink launchers or relies on pip console scripts on
   Windows, and hides console windows for background subprocesses.
 - `git.py` and `cli.py` run background subprocesses with
