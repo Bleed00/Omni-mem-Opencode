@@ -9,12 +9,14 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 from .config import (
     AutoSyncConfig,
     Config,
     StartupPullConfig,
+    config_dir,
     config_path,
     load_config,
     save_config,
@@ -298,16 +300,30 @@ def write_opencode_startup_plugin() -> Path:
     plugin_dir.mkdir(parents=True, exist_ok=True)
     plugin = plugin_dir / "omni-mem.js"
     command_js = json.dumps(launcher_command())
-    spawn_opts = "{\n    detached: true,\n    stdio: \"ignore\",\n    windowsHide: true,\n  }"
     plugin.write_text(
-        "import { spawn } from \"node:child_process\";\n\n"
+        "import { spawn } from \"node:child_process\";\n"
+        "import { appendFileSync, openSync } from \"node:fs\";\n"
+        "import { join } from \"node:path\";\n"
+        "import os from \"node:os\";\n\n"
         "let started = false;\n\n"
+        "const appData = process.env.APPDATA || join(os.homedir(), \"AppData\", \"Roaming\");\n"
+        "const logPath = join(appData, \"omni-mem\", \"startup-pull.log\");\n"
+        "const log = (msg) => {\n"
+        "  try { appendFileSync(logPath, new Date().toISOString() + \" \" + msg + \"\\n\"); } catch {}\n"
+        "};\n\n"
         "export default async function OmniMemStartup() {\n"
         "  if (started) return {};\n"
         "  started = true;\n"
         f"  const command = {command_js};\n"
-        f"  const child = spawn(command, [\"startup-pull\"], {spawn_opts});\n"
-        "  child.on(\"error\", () => {});\n"
+        "  log(\"plugin: spawning \" + command + \" startup-pull\");\n"
+        "  let out = null;\n"
+        "  try { out = openSync(logPath, \"a\"); } catch {}\n"
+        "  const child = spawn(command, [\"startup-pull\"], {\n"
+        "    detached: true,\n"
+        "    stdio: [\"ignore\", out, out],\n"
+        "    windowsHide: true,\n"
+        "  });\n"
+        "  child.on(\"error\", (err) => { log(\"plugin: spawn error: \" + err.message); });\n"
         "  child.unref();\n"
         "  return {};\n"
         "}\n"
@@ -418,20 +434,42 @@ def print_status() -> int:
     return 0
 
 
+def startup_pull_log_path() -> Path:
+    return config_dir() / "startup-pull.log"
+
+
 def startup_pull() -> int:
     config = load_config()
-    if not config.startup_pull.enabled:
-        return 0
-    last_error: Exception | None = None
-    for attempt in range(1, config.startup_pull.retry_attempts + 1):
-        try:
-            result = SyncEngine(config).pull()
-            print(json.dumps(result, indent=2))
+    log_path = startup_pull_log_path()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", buffering=1) as log:
+        now = datetime.now().isoformat(timespec="seconds")
+        if not config.startup_pull.enabled:
+            log.write(f"{now} startup-pull: disabled, exiting\n")
             return 0
-        except Exception as exc:
-            last_error = exc
-            if attempt < config.startup_pull.retry_attempts:
-                time.sleep(config.startup_pull.retry_delay_seconds)
+        log.write(f"{now} startup-pull: invoked (retries={config.startup_pull.retry_attempts})\n")
+        last_error: Exception | None = None
+        for attempt in range(1, config.startup_pull.retry_attempts + 1):
+            try:
+                result = SyncEngine(config).pull()
+                log.write(
+                    f"{datetime.now().isoformat(timespec='seconds')} "
+                    f"startup-pull: attempt {attempt} succeeded {json.dumps(result)}\n"
+                )
+                print(json.dumps(result, indent=2))
+                return 0
+            except Exception as exc:
+                last_error = exc
+                log.write(
+                    f"{datetime.now().isoformat(timespec='seconds')} "
+                    f"startup-pull: attempt {attempt} failed: {exc}\n"
+                )
+                if attempt < config.startup_pull.retry_attempts:
+                    time.sleep(config.startup_pull.retry_delay_seconds)
+        log.write(
+            f"{datetime.now().isoformat(timespec='seconds')} "
+            f"startup-pull: failed after retries: {last_error}\n"
+        )
     print(f"ERROR: startup pull failed after retries: {last_error}", file=sys.stderr)
     return 1
 
