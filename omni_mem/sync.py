@@ -22,17 +22,37 @@ class SyncEngine:
                 f"data repository is not cloned at {self.data_dir}. Run 'omni-mem install' first."
             )
 
+    def has_upstream(self) -> bool:
+        """True when the current branch tracks a remote branch.
+
+        Distinguishes a genuine first push (or one interrupted before
+        ``push --set-upstream`` completed) from a normal sync, so a network
+        failure during the very first push is recovered on the next run.
+        """
+        try:
+            git.run(
+                self.data_dir,
+                "rev-parse",
+                "--abbrev-ref",
+                "--symbolic-full-name",
+                "@{u}",
+            )
+        except git.GitError:
+            return False
+        return True
+
     def push(self) -> dict[str, int]:
         self.ensure_data_repo()
         worker = WorkerClient()
         worker.check()
         with SyncLock(self.lock_path):
             self.recover_incomplete_git_operation()
+            first_push = not git.has_head(self.data_dir) or not self.has_upstream()
             counts = data.export_snapshot(worker, self.data_dir)
             if git.is_dirty(self.data_dir):
                 git.run(self.data_dir, "add", "-A", "--", "*.json")
                 git.run(self.data_dir, "commit", "-m", "sync: export memory")
-            if not git.has_head(self.data_dir):
+            if first_push:
                 git.run(self.data_dir, "branch", "-M", "main")
                 git.run(self.data_dir, "push", "--set-upstream", "origin", "main")
             else:
@@ -77,7 +97,7 @@ class SyncEngine:
             self.merge_remote_json()
 
     def merge_remote_json(self) -> None:
-        git.run(self.data_dir, "fetch", "origin", "main")
+        git.run(self.data_dir, "fetch", "origin", "main", check=False)
         try:
             local_head = git.ref(self.data_dir, "HEAD")
             remote_head = git.ref(self.data_dir, "origin/main")

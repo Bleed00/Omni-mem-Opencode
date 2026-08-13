@@ -92,6 +92,14 @@ def database_path() -> Path:
     return worker_data_dir() / "claude-mem.db"
 
 
+class WorkerHTTPError(RuntimeError):
+    """HTTP error from the claude-mem worker, carrying the status code."""
+
+    def __init__(self, status_code: int, message: str):
+        super().__init__(message)
+        self.status_code = status_code
+
+
 class WorkerClient:
     def __init__(self, base_url: str | None = None):
         self.base_url = base_url or f"http://127.0.0.1:{worker_port()}"
@@ -116,7 +124,7 @@ class WorkerClient:
             message = f"worker returned HTTP {exc.code}"
             if detail:
                 message += f": {detail}"
-            raise RuntimeError(message) from exc
+            raise WorkerHTTPError(exc.code, message) from exc
 
     def check(self) -> None:
         self.request("/api/health")
@@ -146,8 +154,8 @@ class WorkerClient:
         try:
             self.request(f"/api/{endpoint}/{record_id}", method="DELETE")
             return True
-        except RuntimeError as exc:
-            if "404" in str(exc):
+        except WorkerHTTPError as exc:
+            if exc.status_code == 404:
                 return False
             raise
 

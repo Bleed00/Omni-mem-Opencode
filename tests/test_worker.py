@@ -5,7 +5,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from omni_mem.worker import _port_from_worker_files, worker_port
+from omni_mem.worker import (
+    WorkerClient,
+    WorkerHTTPError,
+    _port_from_worker_files,
+    worker_port,
+)
 
 
 class WorkerPortTests(unittest.TestCase):
@@ -54,6 +59,28 @@ class WorkerPortTests(unittest.TestCase):
             "omni_mem.worker.settings", return_value={}
         ):
             self.assertEqual(worker_port(), 37777)
+
+
+class WorkerDeleteTests(unittest.TestCase):
+    def test_delete_returns_false_on_404(self):
+        client = WorkerClient("http://127.0.0.1:1")
+        with patch.object(
+            client, "request", side_effect=WorkerHTTPError(404, "worker returned HTTP 404")
+        ):
+            self.assertFalse(client.delete("observations", 42))
+
+    def test_delete_reraises_on_other_errors(self):
+        client = WorkerClient("http://127.0.0.1:1")
+        with patch.object(
+            client, "request", side_effect=WorkerHTTPError(500, "worker returned HTTP 500")
+        ):
+            with self.assertRaises(WorkerHTTPError):
+                client.delete("observations", 42)
+
+    def test_delete_unknown_kind_raises_value_error(self):
+        client = WorkerClient("http://127.0.0.1:1")
+        with self.assertRaises(ValueError):
+            client.delete("nope", 1)
 
 
 if __name__ == "__main__":

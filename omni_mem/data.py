@@ -88,15 +88,19 @@ def record_signature(kind: str, item: dict) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def _empty_tombstones() -> dict[str, set[str]]:
+    return {kind: set() for kind in CONTENT_FIELDS}
+
+
 def read_tombstones(data_dir: Path) -> dict[str, set[str]]:
     path = data_dir / TOMBSTONE_FILE
     if not path.exists():
-        return {"sessions": set(), "observations": set(), "summaries": set(), "prompts": set()}
+        return _empty_tombstones()
     try:
         with path.open() as stream:
             raw = json.load(stream)
     except (OSError, json.JSONDecodeError):
-        return {"sessions": set(), "observations": set(), "summaries": set(), "prompts": set()}
+        return _empty_tombstones()
     return {kind: set(raw.get(kind, [])) for kind in CONTENT_FIELDS}
 
 
