@@ -1,10 +1,10 @@
 {
-  "name": "@bleed00/dsh-omni-mem",
+  "name": "@bleed00/dsh-anywhere-claude-mem",
   "version": "0.1.0",
-  "description": "A DeepSeek Harness plugin that turns the omni-mem git sync into a DSH peer: pull cross-machine memory at session start and push new prompts/observations as they land in the claude-mem worker",
+  "description": "A DeepSeek Harness plugin that turns the anywhere-claude-mem git sync into a DSH peer: pull cross-machine memory at session start and push new prompts/observations as they land in the claude-mem worker",
   "keywords": [
     "dsh-plugin",
-    "omni-mem",
+    "anywhere-claude-mem",
     "claude-mem",
     "memory",
     "sync",
@@ -17,12 +17,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Bleed00/Omni-mem-Opencode.git"
+    "url": "https://github.com/Bleed00/Anywhere-claude-mem.git"
   },
   "bugs": {
-    "url": "https://github.com/Bleed00/Omni-mem-Opencode/issues"
+    "url": "https://github.com/Bleed00/Anywhere-claude-mem/issues"
   },
-  "homepage": "https://github.com/Bleed00/Omni-mem-Opencode#readme",
+  "homepage": "https://github.com/Bleed00/Anywhere-claude-mem#readme",
   "engines": {
     "node": ">=20.12.0"
   },

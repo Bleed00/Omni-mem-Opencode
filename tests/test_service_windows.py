@@ -2,8 +2,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from omni_mem.config import Config
-from omni_mem.service_windows import (
+from anywhere_claude_mem.config import Config
+from anywhere_claude_mem.service_windows import (
     RUN_KEY,
     TASK_NAME,
     install,
@@ -16,17 +16,17 @@ from omni_mem.service_windows import (
 class RunCommandLineTests(unittest.TestCase):
     def test_command_line_quotes_pythonw_and_log(self):
         with patch(
-            "omni_mem.service_windows.pythonw_path",
+            "anywhere_claude_mem.service_windows.pythonw_path",
             return_value="C:\\Python314\\pythonw.exe",
         ), patch(
-            "omni_mem.service_windows.config_dir",
-            return_value=Path("C:\\AppData\\omni-mem"),
+            "anywhere_claude_mem.service_windows.config_dir",
+            return_value=Path("C:\\AppData\\anywhere-claude-mem"),
         ):
             line = run_command_line()
-        expected_log = str(Path("C:\\AppData\\omni-mem") / "watch.log")
+        expected_log = str(Path("C:\\AppData\\anywhere-claude-mem") / "watch.log")
         self.assertEqual(
             line,
-            f'"C:\\Python314\\pythonw.exe" -m omni_mem watch --log "{expected_log}"',
+            f'"C:\\Python314\\pythonw.exe" -m anywhere_claude_mem watch --log "{expected_log}"',
         )
 
 
@@ -35,10 +35,10 @@ class RunKeyRegistryTests(unittest.TestCase):
         return Config(wrapper_dir="C:\\repo", data_repo_dir="C:\\repo\\data")
 
     def test_install_writes_run_value(self):
-        with patch("omni_mem.service_windows.winreg") as mock_winreg:
+        with patch("anywhere_claude_mem.service_windows.winreg") as mock_winreg:
             mock_key = mock_winreg.OpenKey.return_value.__enter__.return_value
             with patch(
-                "omni_mem.service_windows.run_command_line",
+                "anywhere_claude_mem.service_windows.run_command_line",
                 return_value="the-command",
             ):
                 install(self._config(), None)
@@ -50,8 +50,8 @@ class RunKeyRegistryTests(unittest.TestCase):
             )
 
     def test_remove_deletes_run_value(self):
-        with patch("omni_mem.service_windows.winreg") as mock_winreg:
-            with patch("omni_mem.service_windows.subprocess.run") as mock_run:
+        with patch("anywhere_claude_mem.service_windows.winreg") as mock_winreg:
+            with patch("anywhere_claude_mem.service_windows.subprocess.run") as mock_run:
                 remove()
         mock_winreg.DeleteValue.assert_called_once_with(
             mock_winreg.OpenKey.return_value.__enter__.return_value, TASK_NAME
@@ -59,19 +59,19 @@ class RunKeyRegistryTests(unittest.TestCase):
         self.assertEqual(mock_run.call_count, 1)
 
     def test_remove_ignores_missing_value(self):
-        with patch("omni_mem.service_windows.winreg") as mock_winreg:
+        with patch("anywhere_claude_mem.service_windows.winreg") as mock_winreg:
             mock_winreg.DeleteValue.side_effect = FileNotFoundError
-            with patch("omni_mem.service_windows.subprocess.run") as mock_run:
+            with patch("anywhere_claude_mem.service_windows.subprocess.run") as mock_run:
                 remove()
         mock_winreg.DeleteValue.assert_called_once()
         self.assertEqual(mock_run.call_count, 1)
 
     def test_status_enabled_when_value_present(self):
-        with patch("omni_mem.service_windows.winreg") as mock_winreg:
+        with patch("anywhere_claude_mem.service_windows.winreg") as mock_winreg:
             self.assertEqual(status(), "enabled")
 
     def test_status_inactive_when_value_missing(self):
-        with patch("omni_mem.service_windows.winreg") as mock_winreg:
+        with patch("anywhere_claude_mem.service_windows.winreg") as mock_winreg:
             mock_winreg.QueryValueEx.side_effect = FileNotFoundError
             self.assertEqual(status(), "inactive")
 

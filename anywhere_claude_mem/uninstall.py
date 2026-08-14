@@ -1,4 +1,4 @@
-"""Uninstall Omni-mem: service, launchers, startup trigger and config."""
+"""Uninstall Anywhere-claude-mem: service, launchers, startup trigger and config."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def launchers() -> list[Path]:
     if sys.platform.startswith("win"):
         return []
     bin_dir = Path.home() / ".local" / "bin"
-    return [bin_dir / name for name in ("omni-mem", "omni-push", "omni-pull")]
+    return [bin_dir / name for name in ("anywhere-claude-mem", "anywhere-push", "anywhere-pull")]
 
 
 def remove_launchers() -> None:
@@ -27,7 +27,7 @@ def remove_launchers() -> None:
 
 
 def remove_opencode_plugin() -> None:
-    plugin = Path.home() / ".config" / "opencode" / "plugins" / "omni-mem.js"
+    plugin = Path.home() / ".config" / "opencode" / "plugins" / "anywhere-claude-mem.js"
     plugin.unlink(missing_ok=True)
 
     config_path = Path.home() / ".config" / "opencode" / "opencode.json"
@@ -38,7 +38,7 @@ def remove_opencode_plugin() -> None:
     plugins = config.get("plugin", [])
     if isinstance(plugins, str):
         plugins = [plugins]
-    plugins = [entry for entry in plugins if entry != "./plugins/omni-mem.js"]
+    plugins = [entry for entry in plugins if entry != "./plugins/anywhere-claude-mem.js"]
     if plugins:
         config["plugin"] = plugins
     else:
@@ -56,12 +56,12 @@ def uninstall(remove_data: bool = False, data_dir: Path | None = None) -> None:
     print("==> Removing launchers")
     remove_launchers()
     _remove_startup_trigger()
-    print("==> Removing Omni-mem configuration")
+    print("==> Removing Anywhere-claude-mem configuration")
     remove_config()
     if remove_data and data_dir is not None:
         print(f"==> Removing local data clone {data_dir}")
         shutil.rmtree(data_dir, ignore_errors=True)
-    print("Omni-mem uninstalled.")
+    print("Anywhere-claude-mem uninstalled.")
 
 
 def _remove_startup_trigger() -> None:
@@ -80,9 +80,9 @@ def _remove_startup_trigger() -> None:
             if profile:
                 remove_dsh_plugin(profile, dsh)
             else:
-                print("==>   (no profile saved; run 'dsh plugin remove @bleed00/dsh-omni-mem')")
+                print("==>   (no profile saved; run 'dsh plugin remove @bleed00/dsh-anywhere-claude-mem')")
         else:
-            print("==>   dsh not found; remove @bleed00/dsh-omni-mem from the profile manually")
+            print("==>   dsh not found; remove @bleed00/dsh-anywhere-claude-mem from the profile manually")
         return
     print("==> Removing OpenCode startup plugin")
     remove_opencode_plugin()

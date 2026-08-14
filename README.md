@@ -1,10 +1,10 @@
-# Omni-mem-Opencode
+# Anywhere-claude-mem
 
 Two-way synchronization of **claude-mem** memory across multiple **OpenCode** and
 **DeepSeek Harness** installations, on **Linux and Windows**.
 
 ```text
-OpenCode / DeepSeek Harness -> claude-mem worker -> Omni-mem Python CLI -> private Git data repository
+OpenCode / DeepSeek Harness -> claude-mem worker -> Anywhere-claude-mem Python CLI -> private Git data repository
 ```
 
 Each machine exports its local claude-mem memory to a **private Git repository**
@@ -14,7 +14,7 @@ and the *startup-pull trigger* differ per OS or per coding tool.
 
 Both platforms write into the **same claude-mem worker**, so the automatic
 watcher recognizes OpenCode and DeepSeek Harness observations alike. Only *who
-runs `omni-mem startup-pull` when the tool starts* changes with the platform
+runs `anywhere-claude-mem startup-pull` when the tool starts* changes with the platform
 selected during install: an OpenCode plugin, or a DeepSeek Harness plugin.
 
 ## Quick install
@@ -25,21 +25,21 @@ Run the installer from the wrapper directory. It asks a few questions, clones
 **Linux:**
 
 ```bash
-git clone https://github.com/Bleed00/Omni-mem-Opencode.git
-cd Omni-mem-Opencode
-python3 -m omni_mem install
+git clone https://github.com/Bleed00/Anywhere-claude-mem.git
+cd Anywhere-claude-mem
+python3 -m anywhere_claude_mem install
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-git clone https://github.com/Bleed00/Omni-mem-Opencode.git
-cd Omni-mem-Opencode
+git clone https://github.com/Bleed00/Anywhere-claude-mem.git
+cd Anywhere-claude-mem
 pip install -e .
-python -m omni_mem install
+python -m anywhere_claude_mem install
 ```
 
-> On Windows the `omni-mem`, `omni-push` and `omni-pull` commands come from
+> On Windows the `anywhere-claude-mem`, `anywhere-push` and `anywhere-pull` commands come from
 > `pip install -e .`; on Linux the installer writes them to `~/.local/bin`.
 
 > The terminal UI differs by platform: **Windows** uses `rich` and
@@ -59,15 +59,15 @@ The install command is interactive:
    thresholds);
 6. asks whether to pull memory when the chosen tool starts (startup pull);
 7. installs the watcher service and the startup-pull trigger for the platform
-   you chose (an OpenCode plugin, or the `dsh-omni-mem` DeepSeek Harness
+   you chose (an OpenCode plugin, or the `dsh-anywhere-claude-mem` DeepSeek Harness
    bundle).
 
 When the installer finishes you can start using it immediately:
 
 ```bash
-omni-mem push          # export local memory to the data repository
-omni-mem pull          # import the data repository into the local worker
-omni-mem status        # show sync and service state
+anywhere-claude-mem push          # export local memory to the data repository
+anywhere-claude-mem pull          # import the data repository into the local worker
+anywhere-claude-mem status        # show sync and service state
 ```
 
 ### Choosing a platform
@@ -75,9 +75,9 @@ omni-mem status        # show sync and service state
 During install you pick **opencode** or **deepseek**. The choice changes only the
 startup-pull trigger:
 
-- **opencode** writes and registers the `omni-mem.js` OpenCode startup plugin
+- **opencode** writes and registers the `anywhere-claude-mem.js` OpenCode startup plugin
   (the historical behavior);
-- **deepseek** installs the `@bleed00/dsh-omni-mem` bundle into a DeepSeek
+- **deepseek** installs the `@bleed00/dsh-anywhere-claude-mem` bundle into a DeepSeek
   Harness profile, which pulls the data repository at session start and pushes
   new memory back on "put" events.
 
@@ -122,7 +122,7 @@ npx -y @deepseek-ai/dsh web        # or `dsh plugin init <profile>` for a CLI pr
 dsh plugin --profile <profile> add @deepseek-ai/dsh-base
 ```
 
-The omni-mem installer mounts `@bleed00/dsh-omni-mem` into the profile you
+The anywhere-claude-mem installer mounts `@bleed00/dsh-anywhere-claude-mem` into the profile you
 choose; the claude-mem worker still must be running.
 
 Configure the worker, for example with OpenRouter. Save as
@@ -179,15 +179,15 @@ Choose `GitHub.com`, `HTTPS`, and browser authentication.
 Export the local memory to the private data repository:
 
 ```bash
-omni-mem push
-omni-push          # alias
+anywhere-claude-mem push
+anywhere-push          # alias
 ```
 
 Import the data repository into the local worker:
 
 ```bash
-omni-mem pull
-omni-pull          # alias
+anywhere-claude-mem pull
+anywhere-pull          # alias
 ```
 
 Both operations are idempotent: re-running a pull never creates duplicate
@@ -197,13 +197,13 @@ Run the first full export explicitly right after installing, so the accumulated
 memory is available on every machine:
 
 ```bash
-omni-mem push
+anywhere-claude-mem push
 ```
 
 ### Status
 
 ```bash
-omni-mem status
+anywhere-claude-mem status
 ```
 
 Shows whether the worker is reachable, the state of the local data repository,
@@ -219,49 +219,49 @@ During installation, enable automatic sync and configure:
 
 The watcher starts from a **baseline** of the observations already present, so
 installing never pushes the whole database unexpectedly. After the first manual
-`omni-mem push`, the watcher pushes automatically once the configured number of
+`anywhere-claude-mem push`, the watcher pushes automatically once the configured number of
 new observations is reached. A failed push is retried at the next polling
 cycle.
 
 The watcher is installed per platform:
 
 - **Linux**: a `systemd --user` service
-  (`omni-mem-watch.service`) with restart on failure.
+  (`anywhere-claude-mem-watch.service`) with restart on failure.
 - **Windows**: a per-user **registry Run key** that launches the watcher hidden
   at logon via `pythonw.exe`. It uses no elevated APIs, so it works on accounts
   where Task Scheduler registration is blocked; as a trade-off it does not
   auto-restart on crash (it starts again at the next logon). Output is appended
-  to `%APPDATA%\omni-mem\watch.log`.
+  to `%APPDATA%\anywhere-claude-mem\watch.log`.
 
 The installer also registers a startup-pull trigger for the platform you chose.
 For **opencode** that is an OpenCode startup plugin that runs
-`omni-mem startup-pull` whenever OpenCode starts; for **deepseek** it is the
-`@bleed00/dsh-omni-mem` bundle in the selected DSH profile, which pulls at
+`anywhere-claude-mem startup-pull` whenever OpenCode starts; for **deepseek** it is the
+`@bleed00/dsh-anywhere-claude-mem` bundle in the selected DSH profile, which pulls at
 session start and pushes new memory back on "put" events. Both run with retries
 while the worker is still starting and do not modify the claude-mem plugin.
 
 Useful commands:
 
 ```bash
-omni-mem status                 # overall state incl. service
-omni-mem service status         # watcher service state
-omni-mem service remove         # stop and remove the watcher service
-omni-mem watch                  # run the watcher in the foreground
-omni-mem startup-pull           # test the startup pull manually
-systemctl --user status omni-mem-watch.service        # Linux service state
-journalctl --user -u omni-mem-watch.service -f        # Linux watcher logs
-Get-Content "$env:APPDATA\omni-mem\watch.log" -Tail 20   # Windows watcher log
+anywhere-claude-mem status                 # overall state incl. service
+anywhere-claude-mem service status         # watcher service state
+anywhere-claude-mem service remove         # stop and remove the watcher service
+anywhere-claude-mem watch                  # run the watcher in the foreground
+anywhere-claude-mem startup-pull           # test the startup pull manually
+systemctl --user status anywhere-claude-mem-watch.service        # Linux service state
+journalctl --user -u anywhere-claude-mem-watch.service -f        # Linux watcher logs
+Get-Content "$env:APPDATA\anywhere-claude-mem\watch.log" -Tail 20   # Windows watcher log
 ```
 
 ## Uninstall
 
 ```bash
-omni-mem uninstall        # remove service, launchers, startup trigger and config
-omni-mem reinstall        # uninstall and run the installer again
+anywhere-claude-mem uninstall        # remove service, launchers, startup trigger and config
+anywhere-claude-mem reinstall        # uninstall and run the installer again
 ```
 
 `uninstall` removes whichever startup trigger this install registered: the
-OpenCode plugin, or the `@bleed00/dsh-omni-mem` bundle from the saved DSH
+OpenCode plugin, or the `@bleed00/dsh-anywhere-claude-mem` bundle from the saved DSH
 profile.
 
 ## Data model and merge safety
@@ -290,11 +290,11 @@ converges on the same state.
 
 ## Configuration
 
-The local Omni-mem configuration is stored at:
+The local Anywhere-claude-mem configuration is stored at:
 
 ```text
-~/.config/omni-mem/config.json       # Linux
-%APPDATA%\omni-mem\config.json       # Windows
+~/.config/anywhere-claude-mem/config.json       # Linux
+%APPDATA%\anywhere-claude-mem\config.json       # Windows
 ```
 
 It contains local paths, the data repository URL, the selected platform
@@ -304,8 +304,8 @@ and automatic-sync settings. It does not contain API keys.
 Watcher state is stored separately at:
 
 ```text
-~/.config/omni-mem/watch-state.json  # Linux
-%APPDATA%\omni-mem\watch-state.json  # Windows
+~/.config/anywhere-claude-mem/watch-state.json  # Linux
+%APPDATA%\anywhere-claude-mem\watch-state.json  # Windows
 ```
 
 ## Security
@@ -322,18 +322,18 @@ Watcher state is stored separately at:
 On **Linux** the CLI runs from the wrapper with no installation:
 
 ```bash
-python3 -m omni_mem --help
+python3 -m anywhere_claude_mem --help
 python3 -m unittest discover tests
 ```
 
-On **Windows**, install the package (editable) to get the `omni-mem`,
-`omni-push` and `omni-pull` commands and the `rich`/`questionary` UI:
+On **Windows**, install the package (editable) to get the `anywhere-claude-mem`,
+`anywhere-push` and `anywhere-pull` commands and the `rich`/`questionary` UI:
 
 ```powershell
 pip install -e .
 ```
 
-`omni-mem install` bootstraps this automatically on Windows when the commands
+`anywhere-claude-mem install` bootstraps this automatically on Windows when the commands
 or the UI dependencies are missing.
 
 The runtime uses the Python standard library, plus `rich` and `questionary`
@@ -348,7 +348,7 @@ tool:
 
 - `service.py` dispatches to `service_linux.py` (systemd user services) or
   `service_windows.py` (logon autostart via the per-user Run key).
-- `config.py` resolves `~/.config/omni-mem` on POSIX and `%APPDATA%\omni-mem` on
+- `config.py` resolves `~/.config/anywhere-claude-mem` on POSIX and `%APPDATA%\anywhere-claude-mem` on
   Windows, and skips `chmod` on Windows.
 - `lock.py` checks process liveness with `os.kill(pid, 0)` on POSIX and
   `OpenProcess`/`GetExitCodeProcess` on Windows.
@@ -360,7 +360,7 @@ tool:
 - `cli.py` generates POSIX symlink launchers or relies on pip console scripts on
   Windows, and hides console windows for background subprocesses.
 - `deepseek.py` discovers DSH profiles under `$DSH_HOME/profiles` and mounts (or
-  removes) the `@bleed00/dsh-omni-mem` bundle via `dsh plugin`.
+  removes) the `@bleed00/dsh-anywhere-claude-mem` bundle via `dsh plugin`.
 - `git.py` and `cli.py` run background subprocesses with
   `CREATE_NO_WINDOW` on Windows so no console window flashes.
 
@@ -369,14 +369,14 @@ The data format and worker API are platform- and tool-independent.
 ## DeepSeek Harness plugin
 
 The `dsh-plugin/` directory is a self-contained, installable DeepSeek Harness
-bundle (`@bleed00/dsh-omni-mem`). It makes DSH a full peer of the sync: on
-`agent/session-start` it runs `omni-mem startup-pull` (the same command the
+bundle (`@bleed00/dsh-anywhere-claude-mem`). It makes DSH a full peer of the sync: on
+`agent/session-start` it runs `anywhere-claude-mem startup-pull` (the same command the
 OpenCode plugin runs), and as prompts/tool results land in the claude-mem worker
 it pushes the new memory back to git through a debounced, fire-and-forget
-`omni-mem push`.
+`anywhere-claude-mem push`.
 
-It never touches the worker API or SQLite — it only shells out to the `omni-mem`
-CLI. Because `omni-mem push` is idempotent and serialized by omni-mem's
+It never touches the worker API or SQLite — it only shells out to the `anywhere-claude-mem`
+CLI. Because `anywhere-claude-mem push` is idempotent and serialized by anywhere-claude-mem's
 `SyncLock`, the automatic watcher can stay active as an independent fallback
 without conflict.
 

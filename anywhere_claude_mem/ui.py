@@ -1,4 +1,4 @@
-"""Terminal UI for Omni-mem.
+"""Terminal UI for Anywhere-claude-mem.
 
 On Windows the UI uses ``rich`` + ``questionary`` (installed by
 ``pip install -e .``). On Linux and other platforms it uses a zero-dependency

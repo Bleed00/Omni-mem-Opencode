@@ -3,20 +3,20 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
-from omni_mem import ui_ansi as ui
-from omni_mem import __version__
+from anywhere_claude_mem import ui_ansi as ui
+from anywhere_claude_mem import __version__
 
 
 class AnsiOutputTests(unittest.TestCase):
     def _capture(self, func) -> str:
         buffer = io.StringIO()
-        with patch("omni_mem.ui_ansi._color_enabled", return_value=False), redirect_stdout(buffer):
+        with patch("anywhere_claude_mem.ui_ansi._color_enabled", return_value=False), redirect_stdout(buffer):
             func()
         return buffer.getvalue()
 
     def test_banner_box(self):
         out = self._capture(ui.banner)
-        self.assertIn(f"omni-mem v{__version__}", out)
+        self.assertIn(f"anywhere-claude-mem v{__version__}", out)
         self.assertIn("╭", out)
         self.assertIn("╮", out)
         self.assertIn("╰", out)
@@ -50,7 +50,7 @@ class AnsiOutputTests(unittest.TestCase):
 
     def test_color_codes_when_enabled(self):
         buffer = io.StringIO()
-        with patch("omni_mem.ui_ansi._color_enabled", return_value=True), redirect_stdout(buffer):
+        with patch("anywhere_claude_mem.ui_ansi._color_enabled", return_value=True), redirect_stdout(buffer):
             ui.ok("git", "found")
         out = buffer.getvalue()
         self.assertIn("\x1b[32m✓\x1b[0m", out)
@@ -69,13 +69,13 @@ class AnsiSpinnerTests(unittest.TestCase):
         def _work():
             return 42
 
-        with patch("omni_mem.ui_ansi._color_enabled", return_value=False):
+        with patch("anywhere_claude_mem.ui_ansi._color_enabled", return_value=False):
             self.assertEqual(ui.spinner("Working", _work), 42)
 
     def test_spinner_marks_success(self):
         buffer = io.StringIO()
-        with patch("omni_mem.ui_ansi._color_enabled", return_value=True), patch(
-            "omni_mem.ui_ansi._width", return_value=8
+        with patch("anywhere_claude_mem.ui_ansi._color_enabled", return_value=True), patch(
+            "anywhere_claude_mem.ui_ansi._width", return_value=8
         ), redirect_stdout(buffer):
             self.assertEqual(ui.spinner("Working", lambda: "ok"), "ok")
         self.assertIn("\x1b[32m✓\x1b[0m Working", buffer.getvalue())
@@ -83,20 +83,20 @@ class AnsiSpinnerTests(unittest.TestCase):
 
 class AnsiPromptTests(unittest.TestCase):
     def test_ask_confirm_line_input(self):
-        with patch("omni_mem.ui_ansi._is_interactive", return_value=False), patch(
+        with patch("anywhere_claude_mem.ui_ansi._is_interactive", return_value=False), patch(
             "builtins.input", return_value="y"
         ):
             self.assertTrue(ui.ask_confirm("Enable?", False))
 
     def test_ask_confirm_interactive_key(self):
-        with patch("omni_mem.ui_ansi._is_interactive", return_value=True), patch(
-            "omni_mem.ui_ansi._read_key", return_value="n"
+        with patch("anywhere_claude_mem.ui_ansi._is_interactive", return_value=True), patch(
+            "anywhere_claude_mem.ui_ansi._read_key", return_value="n"
         ):
             self.assertFalse(ui.ask_confirm("Enable?", True))
 
     def test_ask_confirm_enter_uses_default(self):
-        with patch("omni_mem.ui_ansi._is_interactive", return_value=True), patch(
-            "omni_mem.ui_ansi._read_key", return_value="\n"
+        with patch("anywhere_claude_mem.ui_ansi._is_interactive", return_value=True), patch(
+            "anywhere_claude_mem.ui_ansi._read_key", return_value="\n"
         ):
             self.assertTrue(ui.ask_confirm("Enable?", True))
 
@@ -118,15 +118,15 @@ class AnsiPromptTests(unittest.TestCase):
 
     def test_ask_select_line_input_by_number(self):
         choices = ["Attach EXISTING", "Create NEW"]
-        with patch("omni_mem.ui_ansi._is_interactive", return_value=False), patch(
+        with patch("anywhere_claude_mem.ui_ansi._is_interactive", return_value=False), patch(
             "builtins.input", return_value="2"
         ):
             self.assertEqual(ui.ask_select("Setup?", choices, "Attach EXISTING"), "Create NEW")
 
     def test_ask_select_interactive_arrow_keys(self):
         choices = ["Attach EXISTING", "Create NEW"]
-        with patch("omni_mem.ui_ansi._is_interactive", return_value=True), patch(
-            "omni_mem.ui_ansi._read_key", side_effect=["down", "\n"]
+        with patch("anywhere_claude_mem.ui_ansi._is_interactive", return_value=True), patch(
+            "anywhere_claude_mem.ui_ansi._read_key", side_effect=["down", "\n"]
         ):
             self.assertEqual(ui.ask_select("Setup?", choices, "Attach EXISTING"), "Create NEW")
 

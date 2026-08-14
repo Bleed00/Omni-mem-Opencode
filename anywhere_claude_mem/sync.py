@@ -19,7 +19,7 @@ class SyncEngine:
     def ensure_data_repo(self) -> None:
         if not (self.data_dir / ".git").is_dir():
             raise RuntimeError(
-                f"data repository is not cloned at {self.data_dir}. Run 'omni-mem install' first."
+                f"data repository is not cloned at {self.data_dir}. Run 'anywhere-claude-mem install' first."
             )
 
     def has_upstream(self) -> bool:

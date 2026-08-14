@@ -5,9 +5,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from omni_mem.config import AutoSyncConfig, Config, StartupPullConfig
-from omni_mem.data import stable_key
-from omni_mem.sync import SyncEngine
+from anywhere_claude_mem.config import AutoSyncConfig, Config, StartupPullConfig
+from anywhere_claude_mem.data import stable_key
+from anywhere_claude_mem.sync import SyncEngine
 
 
 class FakeWorker:
@@ -98,11 +98,11 @@ class GitRepoTestCase(unittest.TestCase):
         self._config = _make_config(self.data_dir)
 
         self._patchers = [
-            mock.patch("omni_mem.sync.WorkerClient", return_value=self.worker),
-            mock.patch("omni_mem.sync.observation_fingerprints", return_value=set()),
-            mock.patch("omni_mem.data.load_sessions", return_value=[]),
-            mock.patch("omni_mem.data.delete_local_sessions", return_value=0),
-            mock.patch("omni_mem.config.config_dir", return_value=self.root / "cfg"),
+            mock.patch("anywhere_claude_mem.sync.WorkerClient", return_value=self.worker),
+            mock.patch("anywhere_claude_mem.sync.observation_fingerprints", return_value=set()),
+            mock.patch("anywhere_claude_mem.data.load_sessions", return_value=[]),
+            mock.patch("anywhere_claude_mem.data.delete_local_sessions", return_value=0),
+            mock.patch("anywhere_claude_mem.config.config_dir", return_value=self.root / "cfg"),
         ]
         for patcher in self._patchers:
             patcher.start()
@@ -182,7 +182,7 @@ class RoundTripTests(GitRepoTestCase):
         engine.push()
 
         fresh = FakeWorker()
-        with mock.patch("omni_mem.sync.WorkerClient", return_value=fresh):
+        with mock.patch("anywhere_claude_mem.sync.WorkerClient", return_value=fresh):
             engine.pull()
         self.assertEqual(len(fresh.observations), 1)
         self.assertEqual(list(fresh.observations.values())[0]["title"], "note")
@@ -193,7 +193,7 @@ class RoundTripTests(GitRepoTestCase):
         engine.push()
 
         fresh = FakeWorker()
-        with mock.patch("omni_mem.sync.WorkerClient", return_value=fresh):
+        with mock.patch("anywhere_claude_mem.sync.WorkerClient", return_value=fresh):
             engine.pull()
             engine.pull()
 
@@ -203,7 +203,7 @@ class RoundTripTests(GitRepoTestCase):
 
 class MergeRemoteJsonTests(unittest.TestCase):
     def test_merge_unions_local_and_remote_records(self):
-        from omni_mem import data as data_module
+        from anywhere_claude_mem import data as data_module
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
@@ -218,10 +218,10 @@ class MergeRemoteJsonTests(unittest.TestCase):
             for kind, records in (("observations", local),):
                 data_module.write_records(path / f"{kind}.json", records)
 
-            git = mock.patch("omni_mem.sync.git.run")
+            git = mock.patch("anywhere_claude_mem.sync.git.run")
             fake_run = git.start()
             self.addCleanup(git.stop)
-            ref_patch = mock.patch("omni_mem.sync.git.ref")
+            ref_patch = mock.patch("anywhere_claude_mem.sync.git.ref")
             fake_ref = ref_patch.start()
             self.addCleanup(ref_patch.stop)
 
@@ -248,12 +248,12 @@ class MergeRemoteJsonTests(unittest.TestCase):
 
 class PullRecoveryTests(unittest.TestCase):
     def test_rebase_conflict_falls_back_to_merge_remote_json(self):
-        from omni_mem.git import GitError
+        from anywhere_claude_mem.git import GitError
 
         config = _make_config(Path(tempfile.mkdtemp()))
         engine = SyncEngine(config)
 
-        with mock.patch("omni_mem.sync.git.run") as run:
+        with mock.patch("anywhere_claude_mem.sync.git.run") as run:
             def fake_run(repo, *args, check=True):
                 if args[:2] == ("pull", "--rebase"):
                     raise GitError("conflict")
@@ -269,7 +269,7 @@ class PullRecoveryTests(unittest.TestCase):
     def test_recover_incomplete_operation_aborts_rebase_and_merge(self):
         config = _make_config(Path(tempfile.mkdtemp()))
         engine = SyncEngine(config)
-        with mock.patch("omni_mem.sync.git.run") as run:
+        with mock.patch("anywhere_claude_mem.sync.git.run") as run:
             engine.recover_incomplete_git_operation()
             commands = [c.args[1:3] for c in run.call_args_list]
             self.assertIn(("rebase", "--abort"), commands)

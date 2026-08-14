@@ -1,7 +1,7 @@
-"""DeepSeek Harness integration: discover profiles and mount the omni-mem plugin.
+"""DeepSeek Harness integration: discover profiles and mount the anywhere-claude-mem plugin.
 
-The "deepseek" install path makes DSH a full peer of the omni-mem sync by
-installing the `@bleed00/dsh-omni-mem` bundle (the `dsh-plugin/` checkout next
+The "deepseek" install path makes DSH a full peer of the anywhere-claude-mem sync by
+installing the `@bleed00/dsh-anywhere-claude-mem` bundle (the `dsh-plugin/` checkout next
 to this package) into a DSH profile. The bundle pulls the data repository into
 the claude-mem worker when a DSH session starts and pushes new memory back on
 "put" events, mirroring the OpenCode startup plugin.
@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 
-PLUGIN_PACKAGE = "@bleed00/dsh-omni-mem"
+PLUGIN_PACKAGE = "@bleed00/dsh-anywhere-claude-mem"
 DEFAULT_PROFILE = "web"
 
 
@@ -92,7 +92,7 @@ def _git_clone_dirs() -> list[Path]:
 
     An arbitrary clone cannot be found by scanning the entire filesystem, so we
     probe the conventional spots plus the DSH-managed ``source/current``
-    symlink. Anything outside these is covered by the ``OMNI_MEM_DSH_BIN``
+    symlink. Anything outside these is covered by the ``ANYWHERE_MEM_DSH_BIN``
     explicit override.
     """
     home = Path.home()
@@ -103,7 +103,7 @@ def _git_clone_dirs() -> list[Path]:
     if managed.exists():
         dirs.append(managed)
 
-    explicit = os.environ.get("OMNI_MEM_DSH_BIN")
+    explicit = os.environ.get("ANYWHERE_MEM_DSH_BIN")
     if explicit:
         p = Path(explicit).expanduser()
         dirs.append(p if p.is_dir() else p.parent)
@@ -138,7 +138,7 @@ def find_dsh_command() -> str | None:
     Discovery order:
 
     1. ``dsh`` already on the ambient PATH.
-    2. ``OMNI_MEM_DSH_BIN`` override, then the npx cache
+    2. ``ANYWHERE_MEM_DSH_BIN`` override, then the npx cache
        (``~/.npm/_npx/*/node_modules/.bin/dsh`` and the package ``bin.js``).
     3. Conventional ``git clone`` directories and the DSH-managed
        ``~/.dsh/source/current`` symlink.
@@ -335,7 +335,7 @@ def _run(command: list[str], check: bool = True) -> subprocess.CompletedProcess[
 
 
 def install_plugin(profile: str, wrapper_dir: Path, dsh: str) -> Path:
-    """Mount the omni-mem bundle into the given DSH profile via `dsh plugin add`.
+    """Mount the anywhere-claude-mem bundle into the given DSH profile via `dsh plugin add`.
 
     Returns the profile directory. Raises RuntimeError on failure.
     """
@@ -345,7 +345,7 @@ def install_plugin(profile: str, wrapper_dir: Path, dsh: str) -> Path:
 
     source = plugin_source_dir(wrapper_dir)
     if not (source / "package.json").is_file():
-        raise RuntimeError(f"omni-mem DSH plugin checkout not found: {source}")
+        raise RuntimeError(f"anywhere-claude-mem DSH plugin checkout not found: {source}")
 
     normalize_min_release_age_exclude(target)
     _run([dsh, "plugin", "--profile", profile, "add", str(source)])
@@ -443,7 +443,7 @@ def normalize_min_release_age_exclude(profile_dir: Path) -> None:
 
 
 def remove_plugin(profile: str, dsh: str) -> None:
-    """Remove the omni-mem bundle from a DSH profile (no-op when absent)."""
+    """Remove the anywhere-claude-mem bundle from a DSH profile (no-op when absent)."""
     if not plugin_is_installed(profile):
         return
     try:

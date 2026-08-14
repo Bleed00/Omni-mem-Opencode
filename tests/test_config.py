@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from omni_mem.config import AutoSyncConfig, Config, config_dir, load_config, save_config
+from anywhere_claude_mem.config import AutoSyncConfig, Config, config_dir, load_config, save_config
 
 
 class ConfigTests(unittest.TestCase):
@@ -17,7 +17,7 @@ class ConfigTests(unittest.TestCase):
                 data_repo_url="https://github.com/example/data.git",
                 auto_sync=AutoSyncConfig(True, 10, 2.0, 3.0),
             )
-            with patch("omni_mem.config.config_dir", return_value=config_dir):
+            with patch("anywhere_claude_mem.config.config_dir", return_value=config_dir):
                 save_config(config)
                 loaded = load_config()
             self.assertEqual(loaded.data_repo_url, config.data_repo_url)
@@ -32,7 +32,7 @@ class ConfigTests(unittest.TestCase):
                 wrapper_dir=directory,
                 data_repo_dir=str(Path(directory) / "data"),
             )
-            with patch("omni_mem.config.config_dir", return_value=config_dir):
+            with patch("anywhere_claude_mem.config.config_dir", return_value=config_dir):
                 save_config(config)
                 loaded = load_config()
             self.assertEqual(loaded.platform, "opencode")
@@ -47,7 +47,7 @@ class ConfigTests(unittest.TestCase):
                 platform="deepseek",
                 dsh_profile="web",
             )
-            with patch("omni_mem.config.config_dir", return_value=config_dir):
+            with patch("anywhere_claude_mem.config.config_dir", return_value=config_dir):
                 save_config(config)
                 loaded = load_config()
             self.assertEqual(loaded.platform, "deepseek")
@@ -63,7 +63,7 @@ class ConfigTests(unittest.TestCase):
                 data_repo_dir=str(Path(directory) / "data"),
                 platform="unknown",
             )
-            with patch("omni_mem.config.config_dir", return_value=config_dir):
+            with patch("anywhere_claude_mem.config.config_dir", return_value=config_dir):
                 save_config(cfg)
                 path = config_dir / "config.json"
                 with path.open() as stream:
@@ -74,12 +74,12 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(loaded.platform, "opencode")
 
     def test_config_dir_uses_apdata_on_windows(self):
-        with patch("omni_mem.config.sys.platform", "win32"), patch.dict(
+        with patch("anywhere_claude_mem.config.sys.platform", "win32"), patch.dict(
             os.environ, {"APPDATA": "C:\\Users\\test\\AppData\\Roaming"}
         ):
             self.assertEqual(
                 str(config_dir()),
-                os.path.join("C:\\Users\\test\\AppData\\Roaming", "omni-mem"),
+                os.path.join("C:\\Users\\test\\AppData\\Roaming", "anywhere-claude-mem"),
             )
 
 

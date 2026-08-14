@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from omni_mem.data import (
+from anywhere_claude_mem.data import (
     add_placeholder_sessions,
     merge_records,
     reconcile_sessions_with_db,
@@ -110,7 +110,7 @@ class DataKeyTests(unittest.TestCase):
                 "memory_session_id": "local-id",
             }
         ]
-        with mock.patch("omni_mem.data.load_sessions", return_value=local):
+        with mock.patch("anywhere_claude_mem.data.load_sessions", return_value=local):
             result = reconcile_sessions_with_db(payload)
         session = result["sessions"][0]
         self.assertEqual(session["memory_session_id"], "local-id")
@@ -134,7 +134,7 @@ class DataKeyTests(unittest.TestCase):
                 "memory_session_id": "shared-id",
             }
         ]
-        with mock.patch("omni_mem.data.load_sessions", return_value=local):
+        with mock.patch("anywhere_claude_mem.data.load_sessions", return_value=local):
             result = reconcile_sessions_with_db(payload)
         self.assertEqual(result["sessions"], [])
 
@@ -148,14 +148,14 @@ class DataKeyTests(unittest.TestCase):
                 }
             ]
         }
-        with mock.patch("omni_mem.data.load_sessions", return_value=[]):
+        with mock.patch("anywhere_claude_mem.data.load_sessions", return_value=[]):
             result = reconcile_sessions_with_db(payload)
         self.assertEqual(result["sessions"][0]["memory_session_id"], "brand-new-id")
 
 
 class TombstoneTests(unittest.TestCase):
     def test_record_signature_ignores_id_and_memory_session_id(self):
-        from omni_mem.data import record_signature
+        from anywhere_claude_mem.data import record_signature
 
         base = {
             "id": 1,
@@ -176,7 +176,7 @@ class TombstoneTests(unittest.TestCase):
         self.assertNotEqual(record_signature("observations", base), record_signature("observations", changed))
 
     def test_tombstones_roundtrip_and_prune(self):
-        from omni_mem.data import read_tombstones, write_tombstones, prune_tombstoned
+        from anywhere_claude_mem.data import read_tombstones, write_tombstones, prune_tombstoned
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
@@ -201,7 +201,7 @@ class TombstoneTests(unittest.TestCase):
             self.assertEqual(pruned[0]["title"], "y")
 
     def test_merge_tombstones_returns_union(self):
-        from omni_mem.data import merge_tombstones
+        from anywhere_claude_mem.data import merge_tombstones
 
         merged = merge_tombstones(
             {"sessions": {"a"}, "observations": {"b"}, "summaries": set(), "prompts": set()},
@@ -210,7 +210,7 @@ class TombstoneTests(unittest.TestCase):
         self.assertEqual(merged["sessions"], {"a", "c"})
 
     def test_plan_deletions_detects_modification_and_tombstone(self):
-        from omni_mem.data import plan_deletions
+        from anywhere_claude_mem.data import plan_deletions
 
         payload_obs = {
             "id": 10, "memory_session_id": "m", "title": "same",
@@ -232,7 +232,7 @@ class TombstoneTests(unittest.TestCase):
         self.assertEqual(plan["observations"], [1])
 
     def test_plan_deletions_skips_identical_records(self):
-        from omni_mem.data import plan_deletions
+        from anywhere_claude_mem.data import plan_deletions
 
         obs = {"id": 1, "memory_session_id": "m", "title": "same", "text": "same", "created_at_epoch": 100}
         payload = {"sessions": [], "observations": [obs], "summaries": [], "prompts": []}
@@ -242,7 +242,7 @@ class TombstoneTests(unittest.TestCase):
         self.assertEqual(plan["observations"], [])
 
     def test_plan_deletions_tombstoned_key_is_removed(self):
-        from omni_mem.data import plan_deletions
+        from anywhere_claude_mem.data import plan_deletions
 
         obs = {"id": 1, "memory_session_id": "m", "title": "gone", "created_at_epoch": 100}
         payload = {"sessions": [], "observations": [], "summaries": [], "prompts": []}

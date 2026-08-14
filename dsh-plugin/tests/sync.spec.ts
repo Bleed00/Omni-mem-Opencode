@@ -2,9 +2,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { existsSync } from 'node:fs'
-import { resolveOmniMemCommand, runDetached, DebouncedPusher } from '../src/sync.js'
+import { resolveAnywhereClaudeMemCommand, runDetached, DebouncedPusher } from '../src/sync.js'
 
-describe('resolveOmniMemCommand', () => {
+describe('resolveAnywhereClaudeMemCommand', () => {
   const originalPlatform = process.platform
 
   afterEach(() => {
@@ -14,15 +14,15 @@ describe('resolveOmniMemCommand', () => {
   })
 
   it('returns the explicit absolute command when configured', () => {
-    expect(resolveOmniMemCommand('/custom/bin/omni-mem')).toBe('/custom/bin/omni-mem')
+    expect(resolveAnywhereClaudeMemCommand('/custom/bin/anywhere-claude-mem')).toBe('/custom/bin/anywhere-claude-mem')
   })
 
   it('falls back to a POSIX ~/.local/bin launcher when it exists, else the bare name', () => {
     Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
     vi.stubEnv('PATH', '')
-    const local = join(homedir(), '.local', 'bin', 'omni-mem')
-    const expected = existsSync(local) ? local : 'omni-mem'
-    expect(resolveOmniMemCommand()).toBe(expected)
+    const local = join(homedir(), '.local', 'bin', 'anywhere-claude-mem')
+    const expected = existsSync(local) ? local : 'anywhere-claude-mem'
+    expect(resolveAnywhereClaudeMemCommand()).toBe(expected)
   })
 
   it('refuses to return an external path when a Windows PATH entry is only dotless', () => {
@@ -30,7 +30,7 @@ describe('resolveOmniMemCommand', () => {
     // directory; the resolver degrades to the bare command name.
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
     vi.stubEnv('PATH', '')
-    expect(resolveOmniMemCommand()).toBe('omni-mem')
+    expect(resolveAnywhereClaudeMemCommand()).toBe('anywhere-claude-mem')
   })
 })
 
@@ -51,14 +51,14 @@ describe('DebouncedPusher', () => {
   })
 
   it('is disabled and inert when enabled is false', () => {
-    const pusher = new DebouncedPusher('omni-mem', 100, false)
+    const pusher = new DebouncedPusher('anywhere-claude-mem', 100, false)
     expect(pusher.signal()).toBe(false)
     expect(pusher.fired).toBe(0)
     pusher.dispose()
   })
 
   it('arms on the first signal and coalesces a burst', () => {
-    const pusher = new DebouncedPusher('omni-mem', 1000, true)
+    const pusher = new DebouncedPusher('anywhere-claude-mem', 1000, true)
     expect(pusher.signal()).toBe(true) // leading edge
     expect(pusher.signal()).toBe(false) // subsequent signals not leading
     expect(pusher.armed).toBe(true)
@@ -67,7 +67,7 @@ describe('DebouncedPusher', () => {
   })
 
   it('fires exactly one push after the debounce window', () => {
-    const pusher = new DebouncedPusher('omni-mem', 1000, true)
+    const pusher = new DebouncedPusher('anywhere-claude-mem', 1000, true)
     pusher.signal()
     pusher.signal()
     vi.advanceTimersByTime(1000)
@@ -77,7 +77,7 @@ describe('DebouncedPusher', () => {
   })
 
   it('resets the window when a new signal arrives mid-debounce', () => {
-    const pusher = new DebouncedPusher('omni-mem', 1000, true)
+    const pusher = new DebouncedPusher('anywhere-claude-mem', 1000, true)
     pusher.signal()
     vi.advanceTimersByTime(900) // still waiting
     pusher.signal() // restarts the window
@@ -89,7 +89,7 @@ describe('DebouncedPusher', () => {
   })
 
   it('dispose cancels an armed push', () => {
-    const pusher = new DebouncedPusher('omni-mem', 1000, true)
+    const pusher = new DebouncedPusher('anywhere-claude-mem', 1000, true)
     pusher.signal()
     pusher.dispose()
     vi.advanceTimersByTime(2000)

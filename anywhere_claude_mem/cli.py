@@ -1,4 +1,4 @@
-"""Command-line interface for Omni-mem."""
+"""Command-line interface for Anywhere-claude-mem."""
 
 from __future__ import annotations
 
@@ -53,8 +53,8 @@ from .ui import (
     summary,
     warn,
 )
-from .uninstall import reinstall as reinstall_omni_mem
-from .uninstall import uninstall as uninstall_omni_mem
+from .uninstall import reinstall as reinstall_anywhere_claude_mem
+from .uninstall import uninstall as uninstall_anywhere_claude_mem
 from .watcher import watch
 from .worker import WorkerClient
 
@@ -92,7 +92,7 @@ def ensure_bootstrap() -> None:
     """On Windows, install the editable package when commands or UI deps are missing.
 
     Linux and other platforms use the zero-dependency ANSI UI and the launchers
-    written by ``omni-mem install``, so nothing needs to be installed here.
+    written by ``anywhere-claude-mem install``, so nothing needs to be installed here.
     """
     if not sys.platform.startswith("win"):
         return
@@ -103,9 +103,9 @@ def ensure_bootstrap() -> None:
         deps_ok = False
     else:
         deps_ok = True
-    if deps_ok and command_exists("omni-mem"):
+    if deps_ok and command_exists("anywhere-claude-mem"):
         return
-    note("Installing omni-mem commands and UI dependencies...")
+    note("Installing anywhere-claude-mem commands and UI dependencies...")
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "-e", str(WRAPPER_DIR)],
         text=True,
@@ -116,9 +116,9 @@ def ensure_bootstrap() -> None:
         warn("could not install UI dependencies; continuing in plain mode", detail)
         return
     reset_cache()
-    if not command_exists("omni-mem"):
+    if not command_exists("anywhere-claude-mem"):
         raise RuntimeError(
-            "pip install succeeded but omni-mem was not found; restart the terminal and re-run"
+            "pip install succeeded but anywhere-claude-mem was not found; restart the terminal and re-run"
         )
 
 
@@ -258,7 +258,7 @@ def install_gh() -> None:
         run_interactive([gh_bin, "auth", "login"])
         return
     raise RuntimeError(
-        "Install gh with the package manager of your distribution, then re-run 'omni-mem install'."
+        "Install gh with the package manager of your distribution, then re-run 'anywhere-claude-mem install'."
     )
 
 
@@ -275,7 +275,7 @@ def find_gh() -> str:
         if candidate.is_file():
             return str(candidate)
     raise RuntimeError(
-        "gh was installed but could not be located; restart the terminal and re-run 'omni-mem install'"
+        "gh was installed but could not be located; restart the terminal and re-run 'anywhere-claude-mem install'"
     )
 
 
@@ -305,7 +305,7 @@ def create_or_select_data_repo(
                 f"{username}/{name}",
                 "--private",
                 "--description",
-                "Memory data for Omni-mem-Opencode",
+                "Memory data for Anywhere-claude-mem",
             ],
         )
         url = f"https://github.com/{username}/{name}.git"
@@ -338,17 +338,17 @@ def write_launcher() -> Path | None:
     if sys.platform.startswith("win"):
         return None
     BIN_DIR.mkdir(parents=True, exist_ok=True)
-    launcher = BIN_DIR / "omni-mem"
+    launcher = BIN_DIR / "anywhere-claude-mem"
     content = (
         "#!/usr/bin/env python3\n"
         "import sys\n"
         f"sys.path.insert(0, {str(WRAPPER_DIR)!r})\n"
-        "from omni_mem.cli import main\n"
+        "from anywhere_claude_mem.cli import main\n"
         "raise SystemExit(main())\n"
     )
     launcher.write_text(content)
     launcher.chmod(0o755)
-    for alias in ("omni-push", "omni-pull"):
+    for alias in ("anywhere-push", "anywhere-pull"):
         alias_path = BIN_DIR / alias
         alias_path.unlink(missing_ok=True)
         alias_path.symlink_to(launcher)
@@ -356,19 +356,19 @@ def write_launcher() -> Path | None:
 
 
 def launcher_command() -> str:
-    """Absolute path to the omni-mem executable for the OpenCode startup plugin."""
+    """Absolute path to the anywhere-claude-mem executable for the OpenCode startup plugin."""
     if sys.platform.startswith("win"):
-        resolved = shutil.which("omni-mem")
+        resolved = shutil.which("anywhere-claude-mem")
         if not resolved:
-            raise RuntimeError("omni-mem command not found; run 'pip install -e .' first")
+            raise RuntimeError("anywhere-claude-mem command not found; run 'pip install -e .' first")
         return str(Path(resolved))
-    return str(BIN_DIR / "omni-mem")
+    return str(BIN_DIR / "anywhere-claude-mem")
 
 
 def write_opencode_startup_plugin() -> Path:
     plugin_dir = Path.home() / ".config" / "opencode" / "plugins"
     plugin_dir.mkdir(parents=True, exist_ok=True)
-    plugin = plugin_dir / "omni-mem.js"
+    plugin = plugin_dir / "anywhere-claude-mem.js"
     command_js = json.dumps(launcher_command())
     plugin.write_text(
         "import { spawn } from \"node:child_process\";\n"
@@ -377,11 +377,11 @@ def write_opencode_startup_plugin() -> Path:
         "import os from \"node:os\";\n\n"
         "let started = false;\n\n"
         "const appData = process.env.APPDATA || join(os.homedir(), \"AppData\", \"Roaming\");\n"
-        "const logPath = join(appData, \"omni-mem\", \"startup-pull.log\");\n"
+        "const logPath = join(appData, \"anywhere-claude-mem\", \"startup-pull.log\");\n"
         "const log = (msg) => {\n"
         "  try { appendFileSync(logPath, new Date().toISOString() + \" \" + msg + \"\\n\"); } catch {}\n"
         "};\n\n"
-        "export default async function OmniMemStartup() {\n"
+        "export default async function AnywhereClaudeMemStartup() {\n"
         "  if (started) return {};\n"
         "  started = true;\n"
         f"  const command = {command_js};\n"
@@ -410,8 +410,8 @@ def register_opencode_plugin() -> None:
     plugins = config.get("plugin", [])
     if isinstance(plugins, str):
         plugins = [plugins]
-    if "./plugins/omni-mem.js" not in plugins:
-        plugins.append("./plugins/omni-mem.js")
+    if "./plugins/anywhere-claude-mem.js" not in plugins:
+        plugins.append("./plugins/anywhere-claude-mem.js")
     config["plugin"] = plugins
     config_path_.write_text(json.dumps(config, indent=2) + "\n")
 
@@ -452,7 +452,7 @@ def install_startup_trigger(platform: str) -> str:
         ok("DeepSeek startup plugin", PLUGIN_LABEL)
         ok("DSH profile", str(target))
         if not plugin_is_installed(profile):
-            raise RuntimeError("the omni-mem DSH plugin was not registered")
+            raise RuntimeError("the anywhere-claude-mem DSH plugin was not registered")
         return profile
 
     plugin = write_opencode_startup_plugin()
@@ -461,7 +461,7 @@ def install_startup_trigger(platform: str) -> str:
     return ""
 
 
-PLUGIN_LABEL = "@bleed00/dsh-omni-mem"
+PLUGIN_LABEL = "@bleed00/dsh-anywhere-claude-mem"
 
 
 def install() -> int:
@@ -511,7 +511,7 @@ def install() -> int:
     ok("configuration", str(config_path()))
 
     write_launcher()
-    ok("commands", "omni-mem, omni-push, omni-pull")
+    ok("commands", "anywhere-claude-mem, anywhere-push, anywhere-pull")
 
     if enabled:
         launcher = launcher_path()
@@ -531,7 +531,7 @@ def install() -> int:
             ("platform", platform_label),
             ("automatic watcher", "active" if enabled else "disabled"),
             ("startup pull", "enabled" if startup_enabled else "disabled"),
-            ("commands", "omni-mem push | omni-mem pull"),
+            ("commands", "anywhere-claude-mem push | anywhere-claude-mem pull"),
         ],
     )
     return 0
@@ -565,7 +565,7 @@ def print_status() -> int:
         ("watcher service", data["service"]),
         ("state file", data["state_file"]),
     ]
-    summary("omni-mem status", items)
+    summary("anywhere-claude-mem status", items)
     return 0
 
 
@@ -628,9 +628,9 @@ def startup_pull() -> int:
 
 def launcher_path() -> Path | None:
     if sys.platform.startswith("win"):
-        found = shutil.which("omni-mem")
+        found = shutil.which("anywhere-claude-mem")
         return Path(found) if found else None
-    return BIN_DIR / "omni-mem"
+    return BIN_DIR / "anywhere-claude-mem"
 
 
 def _result_items(result) -> list[tuple[str, str]]:
@@ -642,10 +642,10 @@ def _result_items(result) -> list[tuple[str, str]]:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     program = Path(sys.argv[0]).stem
-    if not argv and program in {"omni-push", "omni-pull"}:
-        argv = [program.removeprefix("omni-")]
+    if not argv and program in {"anywhere-push", "anywhere-pull"}:
+        argv = [program.removeprefix("anywhere-")]
 
-    parser = argparse.ArgumentParser(prog="omni-mem")
+    parser = argparse.ArgumentParser(prog="anywhere-claude-mem")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("install")
     sub.add_parser("push")
@@ -664,9 +664,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "install":
             return install()
         if args.command == "uninstall":
-            return uninstall_omni_mem(remove_data=True, data_dir=WRAPPER_DIR / "data")
+            return uninstall_anywhere_claude_mem(remove_data=True, data_dir=WRAPPER_DIR / "data")
         if args.command == "reinstall":
-            return reinstall_omni_mem(install)
+            return reinstall_anywhere_claude_mem(install)
         if args.command != "watch":
             ensure_bootstrap()
         config = load_config()

@@ -47,7 +47,7 @@ def _print_line(text: str) -> None:
 
 def banner() -> None:
     console = _get_console()
-    title = f"omni-mem v{__version__}"
+    title = f"anywhere-claude-mem v{__version__}"
     subtitle = "Synchronize claude-mem memory across OpenCode installs"
     if console is None:
         print(title)

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .config import Config, config_dir
 
-TASK_NAME = "omni-mem-watch"
+TASK_NAME = "anywhere-claude-mem-watch"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 try:
@@ -35,7 +35,7 @@ def run_command_line() -> str:
     """Command stored in the Run key; starts the watcher at logon."""
     exe = pythonw_path()
     log_path = config_dir() / "watch.log"
-    return f'"{exe}" -m omni_mem watch --log "{log_path}"'
+    return f'"{exe}" -m anywhere_claude_mem watch --log "{log_path}"'
 
 
 def _run_key(access: int):

@@ -17,7 +17,7 @@ def pending_observations(current: set[str], seen: set[str]) -> int:
 
 def watch(config: Config, log_path: str | None = None) -> None:
     if not config.auto_sync.enabled:
-        raise RuntimeError("automatic sync is disabled in the Omni-mem configuration")
+        raise RuntimeError("automatic sync is disabled in the Anywhere-claude-mem configuration")
     engine = SyncEngine(config)
     state = load_watch_state()
     current = observation_fingerprints()

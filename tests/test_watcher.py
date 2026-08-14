@@ -1,6 +1,6 @@
 import unittest
 
-from omni_mem.watcher import pending_observations
+from anywhere_claude_mem.watcher import pending_observations
 
 
 class WatcherTests(unittest.TestCase):

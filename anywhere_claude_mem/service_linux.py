@@ -9,9 +9,9 @@ from pathlib import Path
 from .config import Config
 
 
-SERVICE_NAME = "omni-mem-watch.service"
-LEGACY_TIMER = "omni-mem-push.timer"
-LEGACY_SERVICE = "omni-mem-push.service"
+SERVICE_NAME = "anywhere-claude-mem-watch.service"
+LEGACY_TIMER = "anywhere-claude-mem-push.timer"
+LEGACY_SERVICE = "anywhere-claude-mem-push.service"
 
 
 def unit_dir() -> Path:
@@ -28,7 +28,7 @@ def install(config: Config, launcher: Path) -> None:
     unit_dir().mkdir(parents=True, exist_ok=True)
     unit_path().write_text(
         "[Unit]\n"
-        "Description=Omni-mem automatic claude-mem synchronization\n"
+        "Description=Anywhere-claude-mem automatic claude-mem synchronization\n"
         "After=network-online.target\n"
         "\n"
         "[Service]\n"

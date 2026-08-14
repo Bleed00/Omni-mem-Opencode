@@ -3,7 +3,7 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "omni-mem-opencode"
+name = "anywhere-claude-mem"
 version = "0.4.0"
 description = "Cross-machine claude-mem synchronization for OpenCode and DeepSeek Harness"
 readme = "README.md"
@@ -16,9 +16,9 @@ dependencies = [
 ]
 
 [project.scripts]
-omni-mem = "omni_mem.cli:main"
-omni-push = "omni_mem.cli:main"
-omni-pull = "omni_mem.cli:main"
+anywhere-claude-mem = "anywhere_claude_mem.cli:main"
+anywhere-push = "anywhere_claude_mem.cli:main"
+anywhere-pull = "anywhere_claude_mem.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["omni_mem*"]
+include = ["anywhere_claude_mem*"]

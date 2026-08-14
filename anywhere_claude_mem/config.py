@@ -1,4 +1,4 @@
-"""Configuration and local state for Omni-mem."""
+"""Configuration and local state for Anywhere-claude-mem."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 
-APP_NAME = "omni-mem"
+APP_NAME = "anywhere-claude-mem"
 
 
 def config_dir() -> Path:
@@ -86,7 +86,7 @@ def save_config(config: Config) -> None:
 def load_config() -> Config:
     path = config_path()
     if not path.exists():
-        raise RuntimeError(f"configuration not found: {path}. Run 'omni-mem install' first.")
+        raise RuntimeError(f"configuration not found: {path}. Run 'anywhere-claude-mem install' first.")
     with path.open() as stream:
         raw = json.load(stream)
     auto = AutoSyncConfig(**raw.get("auto_sync", {}))

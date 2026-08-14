@@ -4,19 +4,19 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import MagicMock, patch
 
-from omni_mem import ui_rich as ui
-from omni_mem import __version__
+from anywhere_claude_mem import ui_rich as ui
+from anywhere_claude_mem import __version__
 
 
 class RichPlainOutputTests(unittest.TestCase):
     def _capture(self, func) -> str:
         buffer = io.StringIO()
-        with patch("omni_mem.ui_rich._get_console", return_value=None), redirect_stdout(buffer):
+        with patch("anywhere_claude_mem.ui_rich._get_console", return_value=None), redirect_stdout(buffer):
             func()
         return buffer.getvalue()
 
     def test_banner_plain(self):
-        self.assertIn(f"omni-mem v{__version__}", self._capture(ui.banner))
+        self.assertIn(f"anywhere-claude-mem v{__version__}", self._capture(ui.banner))
 
     def test_section_plain(self):
         self.assertIn("== Checks ==", self._capture(lambda: ui.section("Checks")))

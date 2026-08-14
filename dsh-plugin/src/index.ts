@@ -1,16 +1,16 @@
 /**
- * `dsh-omni-mem` — a DeepSeek Harness plugin that makes DSH a full peer in the
- * omni-mem cross-machine claude-mem sync. On session start it pulls the data
+ * `dsh-anywhere-claude-mem` — a DeepSeek Harness plugin that makes DSH a full peer in the
+ * anywhere-claude-mem cross-machine claude-mem sync. On session start it pulls the data
  * repository into the local claude-mem worker (the same `startup-pull` the
  * OpenCode startup plugin runs), and as new prompts/observations land in the
  * worker during the session it pushes them back to git through a debounced, 
- * fire-and-forget `omni-mem push`.
+ * fire-and-forget `anywhere-claude-mem push`.
  *
- * The git sync itself is entirely delegated to the omni-mem Python command —
+ * The git sync itself is entirely delegated to the anywhere-claude-mem Python command —
  * this plugin never touches the worker API or SQLite, only shells out. Because
- * omni-mem push is idempotent and serialized by its own `SyncLock`, the watcher
+ * anywhere-claude-mem push is idempotent and serialized by its own `SyncLock`, the watcher
  * service can stay active as an independent fallback without any conflict.
- * @module dsh-omni-mem
+ * @module dsh-anywhere-claude-mem
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -18,14 +18,14 @@ import Schema from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-tools'
-import { DebouncedPusher, resolveOmniMemCommand, runDetached } from './sync.js'
+import { DebouncedPusher, resolveAnywhereClaudeMemCommand, runDetached } from './sync.js'
 
-export const name = 'omni-mem'
+export const name = 'anywhere-claude-mem'
 export const inject: string[] = []
 
 /** Plugin configuration. */
 export interface Config {
-  /** The omni-mem executable (default: resolved on PATH, then ~/.local/bin). */
+  /** The anywhere-claude-mem executable (default: resolved on PATH, then ~/.local/bin). */
   command?: string
   /** Pull the data repository at session start. Defaults to true. */
   pullOnSessionStart?: boolean
@@ -56,13 +56,13 @@ type ResolvedConfig = Config & {
   pushOnEvents: Array<'prompt' | 'tool'>
 }
 
-/** Mount the omni-mem peer: a startup pull + a debounced push-on-put trigger. */
+/** Mount the anywhere-claude-mem peer: a startup pull + a debounced push-on-put trigger. */
 export function apply(ctx: Context, config: Config): void {
   const resolved = config as ResolvedConfig
   assertPositiveInteger('pushDebounceMs', resolved.pushDebounceMs)
 
-  const command = resolveOmniMemCommand(resolved.command)
-  ctx.logger?.info?.(`dsh-omni-mem: using omni-mem command '${command}'`)
+  const command = resolveAnywhereClaudeMemCommand(resolved.command)
+  ctx.logger?.info?.(`dsh-anywhere-claude-mem: using anywhere-claude-mem command '${command}'`)
 
   const pusher = new DebouncedPusher(command, resolved.pushDebounceMs, resolved.pushOnPut)
 
@@ -94,11 +94,11 @@ export function apply(ctx: Context, config: Config): void {
     }
   }
 
-  ctx.effect(() => () => pusher.dispose(), 'dsh-omni-mem: drop armed push')
+  ctx.effect(() => () => pusher.dispose(), 'dsh-anywhere-claude-mem: drop armed push')
 }
 
 function assertPositiveInteger(field: string, value: number): void {
   if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`omni-mem: ${field} must be a positive integer`)
+    throw new Error(`anywhere-claude-mem: ${field} must be a positive integer`)
   }
 }

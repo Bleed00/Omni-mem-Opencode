@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from omni_mem.worker import (
+from anywhere_claude_mem.worker import (
     WorkerClient,
     WorkerHTTPError,
     _port_from_worker_files,
@@ -21,7 +21,7 @@ class WorkerPortTests(unittest.TestCase):
 
     def test_port_from_worker_pid(self):
         directory = self._dir_with_worker_pid(37777)
-        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+        with patch("anywhere_claude_mem.worker.worker_data_dir", return_value=directory):
             self.assertEqual(_port_from_worker_files(), 37777)
 
     def test_port_from_supervisor_json(self):
@@ -29,34 +29,34 @@ class WorkerPortTests(unittest.TestCase):
         (directory / "supervisor.json").write_text(
             json.dumps({"status": "running", "port": 37781})
         )
-        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+        with patch("anywhere_claude_mem.worker.worker_data_dir", return_value=directory):
             self.assertEqual(_port_from_worker_files(), 37781)
 
     def test_worker_pid_takes_precedence(self):
         directory = Path(tempfile.mkdtemp())
         (directory / "worker.pid").write_text(json.dumps({"pid": 1, "port": 37710}))
         (directory / "supervisor.json").write_text(json.dumps({"port": 37799}))
-        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+        with patch("anywhere_claude_mem.worker.worker_data_dir", return_value=directory):
             self.assertEqual(_port_from_worker_files(), 37710)
 
     def test_missing_or_invalid_files_return_none(self):
         directory = Path(tempfile.mkdtemp())
         (directory / "worker.pid").write_text("not json")
-        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+        with patch("anywhere_claude_mem.worker.worker_data_dir", return_value=directory):
             self.assertIsNone(_port_from_worker_files())
 
     def test_empty_dir_returns_none(self):
         directory = Path(tempfile.mkdtemp())
-        with patch("omni_mem.worker.worker_data_dir", return_value=directory):
+        with patch("anywhere_claude_mem.worker.worker_data_dir", return_value=directory):
             self.assertIsNone(_port_from_worker_files())
 
     def test_worker_port_prefers_recorded_over_uid(self):
         # Windows lacks os.getuid, so stub the whole module attribute.
         fake_os = types.SimpleNamespace(environ={}, getuid=lambda: 5)
-        with patch("omni_mem.worker._port_from_worker_files", return_value=37777), patch(
-            "omni_mem.worker._probe_health_port", return_value=None
-        ), patch("omni_mem.worker.os", fake_os), patch(
-            "omni_mem.worker.settings", return_value={}
+        with patch("anywhere_claude_mem.worker._port_from_worker_files", return_value=37777), patch(
+            "anywhere_claude_mem.worker._probe_health_port", return_value=None
+        ), patch("anywhere_claude_mem.worker.os", fake_os), patch(
+            "anywhere_claude_mem.worker.settings", return_value={}
         ):
             self.assertEqual(worker_port(), 37777)
 

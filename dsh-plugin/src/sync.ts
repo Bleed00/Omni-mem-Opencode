@@ -1,13 +1,13 @@
 /**
- * How the plugin talks to the omni-mem CLI: locate the executable, run
+ * How the plugin talks to the anywhere-claude-mem CLI: locate the executable, run
  * fire-and-forget subprocesses, and debounce the "push on put" trigger so a
- * burst of prompts doesn't spawn overlapping `omni-mem push` runs.
+ * burst of prompts doesn't spawn overlapping `anywhere-claude-mem push` runs.
  *
  * The sync itself (git pull/push into the claude-mem worker) lives in the
- * omni-mem Python command. This module only shells out to it; every run is
- * safe to retry because `omni-mem push` is idempotent and serialized by the
- * omni-mem `SyncLock`.
- * @module dsh-omni-mem/sync
+ * anywhere-claude-mem Python command. This module only shells out to it; every run is
+ * safe to retry because `anywhere-claude-mem push` is idempotent and serialized by the
+ * anywhere-claude-mem `SyncLock`.
+ * @module dsh-anywhere-claude-mem/sync
  */
 
 import { spawn } from 'node:child_process'
@@ -17,7 +17,7 @@ import { join } from 'node:path'
 
 /** Runtime control surface for the sync coordinator. */
 export interface SyncLimits {
-  /** The omni-mem executable to invoke. */
+  /** The anywhere-claude-mem executable to invoke. */
   command: string
   /** Debounce interval (ms) over which push triggers coalesce. */
   debounceMs: number
@@ -26,28 +26,28 @@ export interface SyncLimits {
 }
 
 /**
- * Locate the omni-mem executable. Precedence:
- * an explicit absolute path, then `omni-mem` on the PATH, then the Linux
- * `~/.local/bin/omni-mem` launcher that `omni-mem install` writes. Falls back
+ * Locate the anywhere-claude-mem executable. Precedence:
+ * an explicit absolute path, then `anywhere-claude-mem` on the PATH, then the Linux
+ * `~/.local/bin/anywhere-claude-mem` launcher that `anywhere-claude-mem install` writes. Falls back
  * to the bare name so the child receives a descriptive ENOENT if nothing is
  * found rather than crashing the harness.
  */
-export function resolveOmniMemCommand(configured?: string): string {
+export function resolveAnywhereClaudeMemCommand(configured?: string): string {
   const explicit = configured?.trim()
   if (explicit) return explicit
 
-  const onPath = findFirstOnPath(['omni-mem', 'omni-mem.exe', 'omni-mem.cmd'])
+  const onPath = findFirstOnPath(['anywhere-claude-mem', 'anywhere-claude-mem.exe', 'anywhere-claude-mem.cmd'])
   if (onPath !== undefined) return onPath
 
   if (process.platform !== 'win32') {
-    const local = join(homedir(), '.local', 'bin', 'omni-mem')
+    const local = join(homedir(), '.local', 'bin', 'anywhere-claude-mem')
     if (existsSync(local)) return local
   }
-  return 'omni-mem'
+  return 'anywhere-claude-mem'
 }
 
 /**
- * Run an omni-mem command detached and forget the child. Fire-and-forget:
+ * Run an anywhere-claude-mem command detached and forget the child. Fire-and-forget:
  * the caller never awaits its completion, so a sync never blocks a prompt or
  * tool turn. The spawned child is unref'd; tests observe the returned process.
  */
@@ -65,7 +65,7 @@ export function runDetached(command: string, args: string[]): ReturnType<typeof 
 /**
  * A debounced push trigger: accumulates "put" signals (a prompt submitted, a
  * tool result observed) and, once `debounceMs` has passed with no new signal,
- * runs a single `omni-mem push`. The watcher remains an independent fallback,
+ * runs a single `anywhere-claude-mem push`. The watcher remains an independent fallback,
  * so a lost push here is recovered by the next polling cycle.
  */
 export class DebouncedPusher {

@@ -79,7 +79,7 @@ def _box(title: str, lines: Iterable[str], color: str = "green") -> str:
 
 
 def banner() -> None:
-    title = f"omni-mem v{__version__}"
+    title = f"anywhere-claude-mem v{__version__}"
     subtitle = "Synchronize claude-mem memory across OpenCode installs"
     print(_box(title, [subtitle], color="cyan"), flush=True)
 

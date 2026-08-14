@@ -22,7 +22,7 @@ class SyncLock:
             except (OSError, ValueError):
                 pid = None
             if pid is not None and _process_is_alive(pid):
-                raise RuntimeError(f"another Omni-mem operation is running: {self.path}") from exc
+                raise RuntimeError(f"another Anywhere-claude-mem operation is running: {self.path}") from exc
             shutil.rmtree(self.path, ignore_errors=True)
             self.path.mkdir(parents=True)
         (self.path / "pid").write_text(str(os.getpid()))
