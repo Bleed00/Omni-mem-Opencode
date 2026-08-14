@@ -322,6 +322,12 @@ def reconcile_sessions_with_db(payload: dict) -> dict:
     sessions = payload.get("sessions") or []
     renamed: dict[str, str] = {}
     kept: list[dict] = []
+    # Memory ids already claimed locally, or already adopted into the kept payload.
+    # This also dedupes payload sessions that share a memory_session_id among
+    # themselves (e.g. a real row plus its add_placeholder_sessions twin), which is
+    # the shape a first import can receive: the UNIQUE constraint on
+    # sdk_sessions.memory_session_id would otherwise be violated on the second row.
+    claimed_mids = set(db_by_memory)
     for session in sessions:
         content = session.get("content_session_id")
         if not content:
@@ -336,12 +342,15 @@ def reconcile_sessions_with_db(payload: dict) -> dict:
             elif not mid:
                 session["memory_session_id"] = local_id
             kept.append(session)
-        elif mid in db_by_memory:
-            # This memory id is already claimed by another content session on
-            # this machine; importing the row would violate the UNIQUE index.
+        elif mid in claimed_mids:
+            # This memory id is already claimed by another content session (either
+            # already in the local DB, or already kept from this same payload);
+            # importing the row would violate the UNIQUE index.
             renamed[mid] = mid
         else:
             kept.append(session)
+        if session.get("memory_session_id"):
+            claimed_mids.add(session["memory_session_id"])
     payload["sessions"] = kept
 
     for kind in ("observations", "summaries"):

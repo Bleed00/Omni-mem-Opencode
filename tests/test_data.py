@@ -152,6 +152,39 @@ class DataKeyTests(unittest.TestCase):
             result = reconcile_sessions_with_db(payload)
         self.assertEqual(result["sessions"][0]["memory_session_id"], "brand-new-id")
 
+    def test_payload_sessions_sharing_memory_id_are_deduplicated_on_first_import(self):
+        # A first import can receive a real session row plus its
+        # add_placeholder_sessions twin, both carrying the SAME memory_session_id.
+        # The UNIQUE constraint on sdk_sessions.memory_session_id would be violated
+        # if both were forwarded, so only the first row must be kept.
+        payload = {
+            "sessions": [
+                {
+                    "platform_source": "claude",
+                    "content_session_id": "openrouter-session-abc-1786",
+                    "memory_session_id": "session-abc-1786",
+                },
+                {
+                    "platform_source": "claude",
+                    "content_session_id": "session-abc-1786",
+                    "memory_session_id": "session-abc-1786",
+                },
+            ],
+            "observations": [
+                {
+                    "memory_session_id": "session-abc-1786",
+                    "title": "obs",
+                    "created_at_epoch": 1,
+                }
+            ],
+            "summaries": [],
+        }
+        with mock.patch("anywhere_claude_mem.data.load_sessions", return_value=[]):
+            result = reconcile_sessions_with_db(payload)
+        self.assertEqual(len(result["sessions"]), 1)
+        self.assertEqual(result["sessions"][0]["content_session_id"], "openrouter-session-abc-1786")
+        self.assertEqual(result["observations"][0]["memory_session_id"], "session-abc-1786")
+
 
 class TombstoneTests(unittest.TestCase):
     def test_record_signature_ignores_id_and_memory_session_id(self):
