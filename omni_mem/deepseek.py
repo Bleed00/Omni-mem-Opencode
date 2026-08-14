@@ -34,9 +34,246 @@ def dsh_profiles_dir() -> Path:
     return dsh_home() / "profiles"
 
 
+def _is_executable(path: Path) -> bool:
+    try:
+        return path.is_file() and os.access(path, os.X_OK)
+    except OSError:
+        return False
+
+
+def _dsh_works(path: str) -> bool:
+    """True when invoking `path --version` succeeds (exit 0).
+
+    A ``dsh`` may exist as a file yet be broken — e.g. a launcher script whose
+    hardcoded checkout directory does not exist on this machine. A real
+    invocation is the only reliable proof that the candidate actually runs, so
+    every candidate below is validated this way before being accepted. The
+    probe is run with a short timeout so a hung tool cannot stall the install.
+    """
+    try:
+        result = subprocess.run(
+            [path, "--version"],
+            text=True,
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _npx_dsh_candidates() -> list[Path]:
+    """`dsh` binaries from previous ``npx @deepseek-ai/dsh web`` runs.
+
+    npx keeps each resolved package in ``~/.npm/_npx/<hash>/node_modules`` and
+    does NOT place ``dsh`` onto any stable PATH. The ``.bin/dsh`` shim and the
+    package's own ``lib/bin.js`` are both valid entry points, so both are
+    collected. Newest cache entries are tried first.
+    """
+    root = Path.home() / ".npm" / "_npx"
+    if not root.is_dir():
+        return []
+    candidates: list[Path] = []
+    for entry in sorted(root.iterdir(), reverse=True):
+        if not entry.is_dir():
+            continue
+        shim = entry / "node_modules" / ".bin" / "dsh"
+        if shim.exists():
+            candidates.append(shim)
+        pkg_bin = entry / "node_modules" / "@deepseek-ai" / "dsh" / "lib" / "bin.js"
+        if pkg_bin.exists():
+            candidates.append(pkg_bin)
+    return candidates
+
+
+def _git_clone_dirs() -> list[Path]:
+    """Common locations of a ``git clone`` of deepseek-harness.
+
+    An arbitrary clone cannot be found by scanning the entire filesystem, so we
+    probe the conventional spots plus the DSH-managed ``source/current``
+    symlink. Anything outside these is covered by the ``OMNI_MEM_DSH_BIN``
+    explicit override.
+    """
+    home = Path.home()
+    dirs: list[Path] = []
+
+    # Managed installer layout: ~/.dsh/source/current -> active checkout.
+    managed = home / ".dsh" / "source" / "current"
+    if managed.exists():
+        dirs.append(managed)
+
+    explicit = os.environ.get("OMNI_MEM_DSH_BIN")
+    if explicit:
+        p = Path(explicit).expanduser()
+        dirs.append(p if p.is_dir() else p.parent)
+
+    for name in (
+        "deepseek-harness",
+        "dsh",
+        "deepseek",
+    ):
+        for base in (home, home / "src", home / "dev", home / "devel", home / "code",
+                     home / "repos", home / "Scrivania"):
+            dirs.append(base / name)
+
+    return dirs
+
+
+def _entry_points_in(checkout: Path) -> list[Path]:
+    """Executable `dsh` entry points inside a checkout directory."""
+    return [
+        p for p in (
+            checkout / "bin" / "dsh",
+            checkout / "bin" / "dsh.exe",
+            checkout / "apps" / "cli" / "lib" / "bin.js",
+            checkout / "lib" / "bin.js",
+        ) if _is_executable(p)
+    ]
+
+
 def find_dsh_command() -> str | None:
-    """Absolute path to `dsh` on PATH, if any."""
-    return shutil.which("dsh")
+    """Locate a working ``dsh`` executable and put its directory on PATH.
+
+    Discovery order:
+
+    1. ``dsh`` already on the ambient PATH.
+    2. ``OMNI_MEM_DSH_BIN`` override, then the npx cache
+       (``~/.npm/_npx/*/node_modules/.bin/dsh`` and the package ``bin.js``).
+    3. Conventional ``git clone`` directories and the DSH-managed
+       ``~/.dsh/source/current`` symlink.
+    4. ``~/.local/bin``, DSH profile ``node_modules/.bin``, and the npm global
+       bin.
+
+    Every candidate is verified by actually running ``<candidate> --version``;
+    a stale launcher whose checkout is missing is rejected rather than trusted.
+    On success the winning directory is prepended to ``os.environ["PATH"]`` so
+    later subprocesses (``_run`` copies the environment) resolve ``dsh`` too.
+    """
+    # 1. Already on PATH — still verify it actually runs (it may be a stale
+    #    launcher left over from a moved checkout).
+    on_path = shutil.which("dsh")
+    if on_path and _dsh_works(on_path):
+        return on_path
+
+    # 2. Build the ordered pool of candidates (directories and explicit files).
+    candidate_dirs = _git_clone_dirs()
+    candidate_dirs += [
+        home_dir for home_dir in [
+            Path.home() / ".local" / "bin",
+        ]
+    ]
+    for profile_bin in _profile_bin_dirs():
+        candidate_dirs.append(profile_bin)
+    npm_global = _npm_global_bin()
+    if npm_global:
+        candidate_dirs.append(npm_global)
+
+    checked: set[str] = set()
+    for d in candidate_dirs:
+        for entry in _files_to_try(d):
+            key = str(entry)
+            if key in checked:
+                continue
+            checked.add(key)
+            if _is_executable(entry) and _dsh_works(str(entry)):
+                if entry.name in ("dsh", "dsh.exe"):
+                    _prepend_to_path(entry.parent)
+                return str(entry)
+
+    # 3. npx cache (bin shims live under a .bin, package bins are explicit files).
+    for candidate in _npx_dsh_candidates():
+        key = str(candidate)
+        if key in checked:
+            continue
+        checked.add(key)
+        if _is_executable(candidate) and _dsh_works(str(candidate)):
+            if candidate.name in ("dsh", "dsh.exe"):
+                _prepend_to_path(candidate.parent)
+            return str(candidate)
+
+    return None
+
+
+def _files_to_try(d: Path) -> list[Path]:
+    """Candidates to probe inside directory `d` (dir shim, then checkout)."""
+    candidates: list[Path] = [d / "dsh", d / "dsh.exe"]
+    for repo_candidate in _entry_points_in(d):
+        candidates.append(repo_candidate)
+    return candidates
+
+
+def _profile_bin_dirs() -> list[Path]:
+    """``node_modules/.bin`` dirs under every DSH profile."""
+    out: list[Path] = []
+    profiles = dsh_profiles_dir()
+    if profiles.is_dir():
+        for entry in profiles.iterdir():
+            if entry.is_dir() and (entry / "package.json").is_file():
+                out.append(entry / "node_modules" / ".bin")
+    return out
+
+
+def _npm_global_bin() -> Path | None:
+    try:
+        prefix = subprocess.run(
+            ["npm", "prefix", "-g"],
+            text=True,
+            capture_output=True,
+            check=False,
+        ).stdout.strip()
+    except (OSError, FileNotFoundError):
+        return None
+    if not prefix:
+        return None
+    p = Path(prefix)
+    # npm/Windows keeps shims directly in the prefix; POSIX uses prefix/bin.
+    return p if (p / "dsh").exists() or (p / "dsh.cmd").exists() else p / "bin"
+
+
+def _prepend_to_path(d: Path) -> None:
+    entries = os.environ.get("PATH", "").split(os.pathsep)
+    entry = str(d)
+    entries = [e for e in entries if e and e != entry]
+    os.environ["PATH"] = os.pathsep.join([entry, *entries])
+
+
+def resolve_dsh_in_folder(folder: str) -> str | None:
+    """Find a working ``dsh`` entry point inside ``folder``, or None.
+
+    Accepts either a checkout root (``deepseek-harness``), a directory that
+    directly contains a ``dsh`` shim, or the path to a single executable. Every
+    candidate is validated with a real ``--version`` run, so a copied, stale
+    checkout that cannot execute is rejected.
+    """
+    p = Path(folder).expanduser()
+    if p.is_file():
+        candidates = [p]
+    else:
+        candidates = [
+            p / "dsh",
+            p / "dsh.exe",
+            p / "bin" / "dsh",
+            p / "bin" / "dsh.exe",
+            p / "apps" / "cli" / "lib" / "bin.js",
+            p / "lib" / "bin.js",
+        ]
+    for candidate in candidates:
+        if _is_executable(candidate) and _dsh_works(str(candidate)):
+            return str(candidate)
+    return None
+
+
+def put_dsh_on_path(dsh_path: str) -> None:
+    """Prepend the directory containing ``dsh_path`` to ``os.environ["PATH"]``.
+
+    Only meaningful when the entry point file itself is named ``dsh``/``dsh.exe``
+    (so ``which dsh`` resolves to it); callers that found a ``bin.js`` style
+    entry point invoke the returned absolute path directly instead.
+    """
+    p = Path(dsh_path)
+    if p.name in ("dsh", "dsh.exe"):
+        _prepend_to_path(p.parent)
 
 
 def list_profiles() -> list[str]:

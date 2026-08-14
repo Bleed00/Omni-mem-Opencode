@@ -27,7 +27,9 @@ from .deepseek import (
     list_profiles,
     plugin_is_installed,
     profile_dir,
+    put_dsh_on_path,
     remove_plugin as remove_dsh_plugin,
+    resolve_dsh_in_folder,
 )
 from .git import GitError, clone
 from .service import install as install_service
@@ -186,7 +188,7 @@ def _verify_opencode_prerequisites() -> None:
 
 
 def _verify_deepseek_prerequisites() -> None:
-    dsh = find_dsh_command()
+    dsh = find_dsh_interactively()
     if not dsh:
         fail("dsh", "not found")
         raise RuntimeError("DeepSeek Harness 'dsh' was not found on PATH")
@@ -207,6 +209,35 @@ def _verify_deepseek_prerequisites() -> None:
     except Exception as exc:
         fail("claude-mem", "worker unreachable")
         raise RuntimeError("claude-mem worker is unreachable; start it before installing") from exc
+
+
+def find_dsh_interactively() -> str | None:
+    """Locate a working ``dsh``, prompting for the install folder if needed.
+
+    First tries fully-automatic discovery (PATH, npx cache, git-clone and package
+    locations). When none of those yield a working ``dsh``, asks the user for the
+    DeepSeek Harness install/checkout folder, validates a ``dsh`` entry point
+    inside it with a real ``--version`` run, and puts that folder on PATH.
+    Returns the absolute path to use, or None when the user gives up.
+    """
+    dsh = find_dsh_command()
+    if dsh:
+        return dsh
+
+    note("dsh was not found automatically (PATH, npx cache, or known folders).")
+    while True:
+        folder = ask_text(
+            "Path to the DeepSeek Harness folder (the checkout/install dir that contains dsh), "
+            "or leave empty to abort"
+        )
+        if not folder.strip():
+            return None
+        resolved = resolve_dsh_in_folder(folder)
+        if resolved:
+            put_dsh_on_path(resolved)
+            ok("dsh", f"found ({resolved})")
+            return resolved
+        warn(f"No working dsh found in that folder: {folder}")
 
 
 def install_gh() -> None:
@@ -394,7 +425,7 @@ def choose_startup_platform() -> str:
 
 
 def choose_deepseek_profile() -> str:
-    dsh = find_dsh_command()
+    dsh = find_dsh_interactively()
     if not dsh:
         raise RuntimeError("DeepSeek Harness 'dsh' was not found on PATH")
     profiles = list_profiles()
@@ -413,7 +444,7 @@ def install_startup_trigger(platform: str) -> str:
     watcher service and git sync core are shared.
     """
     if platform == "deepseek":
-        dsh = find_dsh_command()
+        dsh = find_dsh_interactively()
         if not dsh:
             raise RuntimeError("DeepSeek Harness 'dsh' was not found on PATH")
         profile = choose_deepseek_profile()
