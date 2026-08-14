@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 from unittest.mock import MagicMock, patch
 
 from omni_mem import ui_rich as ui
+from omni_mem import __version__
 
 
 class RichPlainOutputTests(unittest.TestCase):
@@ -15,7 +16,7 @@ class RichPlainOutputTests(unittest.TestCase):
         return buffer.getvalue()
 
     def test_banner_plain(self):
-        self.assertIn("omni-mem v0.3.0", self._capture(ui.banner))
+        self.assertIn(f"omni-mem v{__version__}", self._capture(ui.banner))
 
     def test_section_plain(self):
         self.assertIn("== Checks ==", self._capture(lambda: ui.section("Checks")))

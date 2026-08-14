@@ -21,6 +21,14 @@ from .config import (
     load_config,
     save_config,
 )
+from .deepseek import (
+    find_dsh_command,
+    install_plugin as install_dsh_plugin,
+    list_profiles,
+    plugin_is_installed,
+    profile_dir,
+    remove_plugin as remove_dsh_plugin,
+)
 from .git import GitError, clone
 from .service import install as install_service
 from .service import remove as remove_service
@@ -112,7 +120,7 @@ def ensure_bootstrap() -> None:
         )
 
 
-def verify_prerequisites() -> tuple[str, bool]:
+def verify_prerequisites(platform: str) -> tuple[str, bool]:
     if sys.platform.startswith("linux"):
         python_cmd = "python3"
     elif sys.platform.startswith("win"):
@@ -146,6 +154,14 @@ def verify_prerequisites() -> tuple[str, bool]:
         else:
             note("Continuing without gh: only attaching an EXISTING data repo is available.")
 
+    if platform == "deepseek":
+        _verify_deepseek_prerequisites()
+    else:
+        _verify_opencode_prerequisites()
+    return username, gh_ok
+
+
+def _verify_opencode_prerequisites() -> None:
     if not command_exists("opencode") and not (
         (Path.home() / ".config" / "opencode").is_dir()
         or (Path.home() / ".opencode").is_dir()
@@ -167,7 +183,30 @@ def verify_prerequisites() -> tuple[str, bool]:
     except Exception as exc:
         fail("claude-mem", "worker unreachable")
         raise RuntimeError("claude-mem worker is unreachable; start it before installing") from exc
-    return username, gh_ok
+
+
+def _verify_deepseek_prerequisites() -> None:
+    dsh = find_dsh_command()
+    if not dsh:
+        fail("dsh", "not found")
+        raise RuntimeError("DeepSeek Harness 'dsh' was not found on PATH")
+    ok("dsh", f"found ({dsh})")
+
+    profiles = list_profiles()
+    if not profiles:
+        fail("DSH profile", "none found")
+        raise RuntimeError(
+            f"no DSH profiles found in {profile_dir('')}; create one with 'dsh plugin init'"
+        )
+    ok("DSH profile", f"{len(profiles)} available ({', '.join(profiles)})")
+
+    try:
+        worker = WorkerClient()
+        spinner("Contacting claude-mem worker", worker.check)
+        ok("claude-mem", f"worker running ({worker.base_url}/api/health)")
+    except Exception as exc:
+        fail("claude-mem", "worker unreachable")
+        raise RuntimeError("claude-mem worker is unreachable; start it before installing") from exc
 
 
 def install_gh() -> None:
@@ -346,11 +385,63 @@ def register_opencode_plugin() -> None:
     config_path_.write_text(json.dumps(config, indent=2) + "\n")
 
 
+def choose_startup_platform() -> str:
+    return ask_select(
+        "Which coding tool should trigger the startup pull?",
+        ["opencode", "deepseek"],
+        default="opencode",
+    ).strip().lower()
+
+
+def choose_deepseek_profile() -> str:
+    dsh = find_dsh_command()
+    if not dsh:
+        raise RuntimeError("DeepSeek Harness 'dsh' was not found on PATH")
+    profiles = list_profiles()
+    if not profiles:
+        raise RuntimeError(f"no DSH profiles found in {profile_dir('')}")
+    if len(profiles) == 1:
+        return profiles[0]
+    return ask_select("Select the DSH profile to install into:", profiles)
+
+
+def install_startup_trigger(platform: str) -> str:
+    """Install the startup-pull trigger for the chosen platform.
+
+    Returns the chosen DeepSeek profile name for the deepseek platform, or the
+    empty string for opencode. Only this piece differs between platforms; the
+    watcher service and git sync core are shared.
+    """
+    if platform == "deepseek":
+        dsh = find_dsh_command()
+        if not dsh:
+            raise RuntimeError("DeepSeek Harness 'dsh' was not found on PATH")
+        profile = choose_deepseek_profile()
+        target = install_dsh_plugin(profile, WRAPPER_DIR, dsh)
+        ok("DeepSeek startup plugin", PLUGIN_LABEL)
+        ok("DSH profile", str(target))
+        if not plugin_is_installed(profile):
+            raise RuntimeError("the omni-mem DSH plugin was not registered")
+        return profile
+
+    plugin = write_opencode_startup_plugin()
+    ok("OpenCode startup plugin", str(plugin))
+    register_opencode_plugin()
+    return ""
+
+
+PLUGIN_LABEL = "@bleed00/dsh-omni-mem"
+
+
 def install() -> int:
     banner()
     ensure_bootstrap()
+    section("Platform")
+    platform = choose_startup_platform()
+    ok("platform", platform)
+
     section("Checking prerequisites")
-    username, gh_ok = verify_prerequisites()
+    username, gh_ok = verify_prerequisites(platform)
     if username:
         ok("prerequisites", f"ready as {username}")
     else:
@@ -367,23 +458,29 @@ def install() -> int:
         auto.poll_interval_seconds = ask_float("Polling interval in seconds", 5)
         auto.debounce_seconds = ask_float("Push debounce in seconds", 10)
 
-    startup_enabled = ask_confirm("Pull memory automatically when OpenCode starts?")
+    tool_name = "deepseek" if platform == "deepseek" else "opencode"
+    startup_enabled = ask_confirm(f"Pull memory automatically when {tool_name.title()} starts?")
     startup = StartupPullConfig(enabled=startup_enabled)
     if startup_enabled:
         startup.retry_attempts = ask_int("Startup pull retry attempts", 12)
         startup.retry_delay_seconds = ask_float("Startup pull retry delay in seconds", 5)
 
     section("Installing")
-    config = Config(str(WRAPPER_DIR), str(data_dir), url, auto, startup)
+    startup_profile = install_startup_trigger(platform)
+    config = Config(
+        str(WRAPPER_DIR),
+        str(data_dir),
+        url,
+        auto,
+        startup,
+        platform,
+        startup_profile if platform == "deepseek" else "",
+    )
     save_config(config)
     ok("configuration", str(config_path()))
 
     write_launcher()
     ok("commands", "omni-mem, omni-push, omni-pull")
-
-    plugin = write_opencode_startup_plugin()
-    ok("OpenCode startup plugin", str(plugin))
-    register_opencode_plugin()
 
     if enabled:
         launcher = launcher_path()
@@ -393,10 +490,14 @@ def install() -> int:
         remove_service()
         ok("automatic watcher", "disabled")
 
+    platform_label = (
+        f"deepseek ({startup_profile})" if platform == "deepseek" else "opencode"
+    )
     summary(
         "Installation complete",
         [
             ("data repository", url),
+            ("platform", platform_label),
             ("automatic watcher", "active" if enabled else "disabled"),
             ("startup pull", "enabled" if startup_enabled else "disabled"),
             ("commands", "omni-mem push | omni-mem pull"),
@@ -410,32 +511,52 @@ def print_status() -> int:
     data = sync_status(config)
     data["service"] = service_status()
     auto = data["auto_sync"]
-    summary(
-        "omni-mem status",
-        [
-            ("claude-mem worker", "running" if data["worker"] else "stopped"),
-            ("data repository", "present" if data["data_repo"] else "missing"),
-            ("data repo url", data["data_repo_url"] or "(none)"),
-            (
-                "auto-sync",
-                "enabled"
-                if auto["enabled"]
-                else "disabled",
-            ),
-            (
-                "auto-sync settings",
-                f"{auto['observations_per_push']} obs / push, "
-                f"poll {auto['poll_interval_seconds']}s, debounce {auto['debounce_seconds']}s",
-            ),
-            ("watcher service", data["service"]),
-            ("state file", data["state_file"]),
-        ],
-    )
+    items = [
+        ("claude-mem worker", "running" if data["worker"] else "stopped"),
+        ("data repository", "present" if data["data_repo"] else "missing"),
+        ("data repo url", data["data_repo_url"] or "(none)"),
+        ("platform", config.platform),
+    ]
+    if config.platform == "deepseek":
+        items.append(("deepseek plugin", "installed" if _deepseek_plugin_ok(config) else "missing"))
+    items += [
+        (
+            "auto-sync",
+            "enabled"
+            if auto["enabled"]
+            else "disabled",
+        ),
+        (
+            "auto-sync settings",
+            f"{auto['observations_per_push']} obs / push, "
+            f"poll {auto['poll_interval_seconds']}s, debounce {auto['debounce_seconds']}s",
+        ),
+        ("watcher service", data["service"]),
+        ("state file", data["state_file"]),
+    ]
+    summary("omni-mem status", items)
     return 0
 
 
 def startup_pull_log_path() -> Path:
     return config_dir() / "startup-pull.log"
+
+
+def _deepseek_plugin_ok(config: Config) -> bool:
+    profile = _deepseek_profile(config)
+    if not profile:
+        return False
+    try:
+        return plugin_is_installed(profile)
+    except Exception:
+        return False
+
+
+def _deepseek_profile(config: Config) -> str:
+    if config.dsh_profile:
+        return config.dsh_profile
+    profiles = list_profiles()
+    return profiles[0] if profiles else ""
 
 
 def startup_pull() -> int:

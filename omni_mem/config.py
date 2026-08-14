@@ -59,6 +59,8 @@ class Config:
     data_repo_url: str = ""
     auto_sync: AutoSyncConfig = field(default_factory=AutoSyncConfig)
     startup_pull: StartupPullConfig = field(default_factory=StartupPullConfig)
+    platform: str = "opencode"
+    dsh_profile: str = ""
 
     @property
     def wrapper_path(self) -> Path:
@@ -89,12 +91,17 @@ def load_config() -> Config:
         raw = json.load(stream)
     auto = AutoSyncConfig(**raw.get("auto_sync", {}))
     startup = StartupPullConfig(**raw.get("startup_pull", {}))
+    platform = raw.get("platform", "opencode")
+    if platform not in ("opencode", "deepseek"):
+        platform = "opencode"
     return Config(
         wrapper_dir=raw["wrapper_dir"],
         data_repo_dir=raw["data_repo_dir"],
         data_repo_url=raw.get("data_repo_url", ""),
         auto_sync=auto,
         startup_pull=startup,
+        platform=platform,
+        dsh_profile=raw.get("dsh_profile", ""),
     )
 
 

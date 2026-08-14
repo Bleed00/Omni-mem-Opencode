@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omni-mem-opencode"
-version = "0.3.0"
-description = "Cross-machine claude-mem synchronization for OpenCode"
+version = "0.4.0"
+description = "Cross-machine claude-mem synchronization for OpenCode and DeepSeek Harness"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }

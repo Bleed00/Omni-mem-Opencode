@@ -1,0 +1,64 @@
+{
+  "name": "@bleed00/dsh-omni-mem",
+  "version": "0.1.0",
+  "description": "A DeepSeek Harness plugin that turns the omni-mem git sync into a DSH peer: pull cross-machine memory at session start and push new prompts/observations as they land in the claude-mem worker",
+  "keywords": [
+    "dsh-plugin",
+    "omni-mem",
+    "claude-mem",
+    "memory",
+    "sync",
+    "deepseek-harness"
+  ],
+  "license": "MIT",
+  "author": "Bleed00",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bleed00/Omni-mem-Opencode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Bleed00/Omni-mem-Opencode/issues"
+  },
+  "homepage": "https://github.com/Bleed00/Omni-mem-Opencode#readme",
+  "engines": {
+    "node": ">=20.12.0"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "prepare": "tsc -p tsconfig.json && tsdown",
+    "build": "npm run prepare",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.0",
+    "@deepseek-ai/dsh-agent": ">=0.1.0-rc.6",
+    "@deepseek-ai/dsh-skill": ">=0.0.1-rc.1",
+    "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1",
+    "@deepseek-ai/schemastery": ">=3.18.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-agent": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-skill": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "@types/node": "^26.2.0",
+    "tsdown": "^0.22.0",
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.0"
+  }
+}

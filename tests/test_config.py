@@ -25,6 +25,54 @@ class ConfigTests(unittest.TestCase):
             if os.name == "posix":
                 self.assertEqual((config_dir / "config.json").stat().st_mode & 0o777, 0o600)
 
+    def test_config_round_trip_default_platform_is_opencode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_dir = Path(directory) / "config"
+            config = Config(
+                wrapper_dir=directory,
+                data_repo_dir=str(Path(directory) / "data"),
+            )
+            with patch("omni_mem.config.config_dir", return_value=config_dir):
+                save_config(config)
+                loaded = load_config()
+            self.assertEqual(loaded.platform, "opencode")
+            self.assertEqual(loaded.dsh_profile, "")
+
+    def test_config_round_trip_deepseek_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_dir = Path(directory) / "config"
+            config = Config(
+                wrapper_dir=directory,
+                data_repo_dir=str(Path(directory) / "data"),
+                platform="deepseek",
+                dsh_profile="web",
+            )
+            with patch("omni_mem.config.config_dir", return_value=config_dir):
+                save_config(config)
+                loaded = load_config()
+            self.assertEqual(loaded.platform, "deepseek")
+            self.assertEqual(loaded.dsh_profile, "web")
+
+    def test_unknown_platform_normalizes_to_opencode(self):
+        import json as _json
+
+        with tempfile.TemporaryDirectory() as directory:
+            config_dir = Path(directory) / "config"
+            cfg = Config(
+                wrapper_dir=directory,
+                data_repo_dir=str(Path(directory) / "data"),
+                platform="unknown",
+            )
+            with patch("omni_mem.config.config_dir", return_value=config_dir):
+                save_config(cfg)
+                path = config_dir / "config.json"
+                with path.open() as stream:
+                    raw = _json.load(stream)
+                raw["platform"] = "bogus"
+                path.write_text(_json.dumps(raw))
+                loaded = load_config()
+            self.assertEqual(loaded.platform, "opencode")
+
     def test_config_dir_uses_apdata_on_windows(self):
         with patch("omni_mem.config.sys.platform", "win32"), patch.dict(
             os.environ, {"APPDATA": "C:\\Users\\test\\AppData\\Roaming"}

@@ -4,6 +4,7 @@ from contextlib import redirect_stdout
 from unittest.mock import patch
 
 from omni_mem import ui_ansi as ui
+from omni_mem import __version__
 
 
 class AnsiOutputTests(unittest.TestCase):
@@ -15,7 +16,7 @@ class AnsiOutputTests(unittest.TestCase):
 
     def test_banner_box(self):
         out = self._capture(ui.banner)
-        self.assertIn("omni-mem v0.3.0", out)
+        self.assertIn(f"omni-mem v{__version__}", out)
         self.assertIn("╭", out)
         self.assertIn("╮", out)
         self.assertIn("╰", out)

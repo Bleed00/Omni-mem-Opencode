@@ -1,0 +1,21 @@
+# dsh-omni-mem bundle patch: mount the omni-mem git-sync peer over dsh-base.
+# The single plugin row makes DSH a full participant in the cross-machine
+# claude-mem sync: it pulls the data repository at session start (so remote
+# memory is fresh when the session begins) and pushes new prompts/observations
+# back to git as they land in the claude-mem worker. Both are fire-and-forget;
+# omni-mem push is idempotent and the watcher remains an independent fallback.
+#
+# You can override every field here through the profile's own cordis.patch.yml.
+
+- insert:
+    - id: omni-mem
+      name: '@bleed00/dsh-omni-mem'
+      config:
+        # command: omni-mem        # the omni-mem executable (default: resolved on PATH)
+        pullOnSessionStart: true
+        pushOnPut: true
+        pushDebounceMs: 10000
+        # pushOnEvents:            # which "put" events count as new memory
+        pushOnEvents:
+          - prompt
+          - tool
