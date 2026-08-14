@@ -24,6 +24,19 @@ from pathlib import Path
 PLUGIN_PACKAGE = "@bleed00/dsh-anywhere-claude-mem"
 DEFAULT_PROFILE = "web"
 
+# `dsh plugin` spawns the external `pnpm` binary and refuses to run when it is
+# missing from PATH (spawnSync ENOENT). That is a common first-install hiccup on
+# a fresh machine. Rather than fail with a bare error, tell the user exactly what
+# to run. The same message is reused in _run() whenever pnpm is reported missing.
+PNPM_MISSING_HINT = (
+    "pnpm is required to manage DSH profile plugins but was not found on PATH.\n"
+    "Install it, then re-run this installer:\n"
+    "  - Windows (PowerShell, as admin):  corepack enable\n"
+    "  - macOS / Linux via corepack:      corepack enable\n"
+    "  - macOS / Linux via npm:           npm install -g pnpm\n"
+    "  - macOS / Linux standalone:        curl -fsSL https://get.pnpm.io/install.sh | sh -"
+)
+
 
 def dsh_home() -> Path:
     base = os.environ.get("DSH_HOME")
@@ -330,6 +343,8 @@ def _run(command: list[str], check: bool = True) -> subprocess.CompletedProcess[
     )
     if check and result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
+        if "pnpm not found on PATH" in detail:
+            raise RuntimeError(f"{' '.join(command)} failed: {detail}\n\n{PNPM_MISSING_HINT}")
         raise RuntimeError(f"{' '.join(command)} failed: {detail}")
     return result
 
