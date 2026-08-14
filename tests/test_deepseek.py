@@ -91,6 +91,22 @@ class InstallRemoveTests(unittest.TestCase):
             self.assertIn(str(self.source), ran[0])
             self.assertTrue(deepseek.plugin_is_installed("web"))
 
+    def test_install_plugin_normalizes_exclude_before_add(self):
+        with self._patch_home():
+            self.profile_dir.joinpath("package.json").write_text(
+                json.dumps({"dsh": {"profile": {"bundles": ["@bleed00/dsh-omni-mem"]}}})
+            )
+            self.profile_dir.joinpath("pnpm-workspace.yaml").write_text(
+                "minimumReleaseAgeExclude:\n"
+                "  - '@bleed00/dsh-claude-mem@0.1.1'\n"
+                "  - '@bleed00/dsh-claude-mem@0.1.5'\n"
+            )
+            with mock.patch("omni_mem.deepseek._run", return_value=_ok()):
+                deepseek.install_plugin("web", self.wrapper, "/bin/dsh")
+            yaml = self.profile_dir.joinpath("pnpm-workspace.yaml").read_text()
+        self.assertIn("minimumReleaseAgeExclude:\n  - '@bleed00/dsh-claude-mem'\n", yaml)
+        self.assertNotIn("@0.1.1", yaml)
+
     def test_install_plugin_raises_when_bundle_not_registered(self):
         with self._patch_home():
             with mock.patch("omni_mem.deepseek._run", return_value=_ok()):
@@ -123,6 +139,69 @@ class InstallRemoveTests(unittest.TestCase):
                 deepseek.remove_plugin("web", "/bin/dsh")
             self.assertIn("remove", ran[0])
             self.assertIn("@bleed00/dsh-omni-mem", ran[0])
+
+
+class NormalizeMinReleaseAgeExcludeTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.profile_dir = Path(self._tmp.name)
+        self.yaml = self.profile_dir / "pnpm-workspace.yaml"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_collapses_duplicate_version_entries_to_name_only(self):
+        self.yaml.write_text(
+            "packages:\n"
+            "  - .\n"
+            "\n"
+            "nodeLinker: hoisted\n"
+            "autoInstallPeers: false\n"
+            "minimumReleaseAgeExclude:\n"
+            "  - '@bleed00/dsh-claude-mem@0.1.1'\n"
+            "  - '@bleed00/dsh-claude-mem@0.1.5'\n"
+        )
+        deepseek.normalize_min_release_age_exclude(self.profile_dir)
+        self.assertEqual(
+            self.yaml.read_text(),
+            "packages:\n"
+            "  - .\n"
+            "\n"
+            "nodeLinker: hoisted\n"
+            "autoInstallPeers: false\n"
+            "minimumReleaseAgeExclude:\n"
+            "  - '@bleed00/dsh-claude-mem'\n",
+        )
+
+    def test_preserves_other_settings_and_single_entries(self):
+        self.yaml.write_text(
+            "packages:\n"
+            "  - .\n"
+            "\n"
+            "minimumReleaseAgeExclude:\n"
+            "  - '@earendil-works/pi-ai@0.82.1'\n"
+            "  - '@bleed00/dsh-claude-mem'\n"
+        )
+        deepseek.normalize_min_release_age_exclude(self.profile_dir)
+        self.assertEqual(
+            self.yaml.read_text(),
+            "packages:\n"
+            "  - .\n"
+            "\n"
+            "minimumReleaseAgeExclude:\n"
+            "  - '@earendil-works/pi-ai@0.82.1'\n"
+            "  - '@bleed00/dsh-claude-mem'\n",
+        )
+
+    def test_noop_when_file_missing(self):
+        deepseek.normalize_min_release_age_exclude(self.profile_dir)
+        self.assertFalse(self.yaml.exists())
+
+    def test_package_name_from_spec(self):
+        self.assertEqual(deepseek._package_name_from_spec("@bleed00/dsh-claude-mem@0.1.5"), "@bleed00/dsh-claude-mem")
+        self.assertEqual(deepseek._package_name_from_spec("node-addon@0.1.4"), "node-addon")
+        self.assertEqual(deepseek._package_name_from_spec("@bleed00/dsh-claude-mem"), "@bleed00/dsh-claude-mem")
+        self.assertEqual(deepseek._package_name_from_spec("'@bleed00/dsh-claude-mem@0.1.5'"), "@bleed00/dsh-claude-mem")
 
 
 class RunCommandTests(unittest.TestCase):
