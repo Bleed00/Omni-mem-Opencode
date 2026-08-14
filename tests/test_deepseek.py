@@ -125,11 +125,44 @@ class InstallRemoveTests(unittest.TestCase):
             self.assertIn("@bleed00/dsh-omni-mem", ran[0])
 
 
+class RunCommandTests(unittest.TestCase):
+    def test_run_sets_non_interactive_pnpm_env(self):
+        """`dsh plugin` forwards to pnpm; capture leaves no TTY, so force a
+        non-interactive run or pnpm aborts asking to purge node_modules."""
+        captured = {}
+
+        def fake_run(cmd, *, text, capture_output, creationflags, env):
+            captured["env"] = env
+            return _ok()
+
+        with mock.patch("omni_mem.deepseek.os.environ", {"HOME": "/home/x"}), \
+                mock.patch("omni_mem.deepseek.subprocess.run", side_effect=fake_run):
+            deepseek._run(["/bin/dsh", "plugin", "--profile", "web", "add", "/p"])
+
+        env = captured["env"]
+        self.assertEqual(env["CI"], "1")
+        self.assertEqual(env["npm_config_confirm_modules_purge"], "false")
+
+    def test_run_raises_on_nonzero(self):
+        with mock.patch("omni_mem.deepseek.os.environ", {}), \
+                mock.patch("omni_mem.deepseek.subprocess.run", return_value=_fail()):
+            with self.assertRaises(RuntimeError):
+                deepseek._run(["/bin/dsh", "plugin"])
+
+
 def _ok():
     class Result:
         returncode = 0
         stdout = ""
         stderr = ""
+    return Result()
+
+
+def _fail():
+    class Result:
+        returncode = 1
+        stdout = ""
+        stderr = "boom"
     return Result()
 
 

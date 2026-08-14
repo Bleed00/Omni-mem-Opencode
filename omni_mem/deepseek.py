@@ -81,7 +81,16 @@ def plugin_is_installed(profile: str) -> bool:
 
 def _run(command: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
     flags = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
-    result = subprocess.run(command, text=True, capture_output=True, creationflags=flags)
+    # `dsh plugin` forwards to pnpm. Because we capture output (no TTY), pnpm
+    # aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY whenever it needs to
+    # rebuild the profile's node_modules to add a plugin. Force a non-interactive
+    # run so pnpm proceeds instead of asking for confirmation.
+    env = dict(os.environ)
+    env.setdefault("CI", "1")
+    env.setdefault("npm_config_confirm_modules_purge", "false")
+    result = subprocess.run(
+        command, text=True, capture_output=True, creationflags=flags, env=env
+    )
     if check and result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
         raise RuntimeError(f"{' '.join(command)} failed: {detail}")
