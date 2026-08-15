@@ -67,16 +67,23 @@ class SyncEngine:
         worker.check()
         with SyncLock(self.lock_path):
             self.recover_incomplete_git_operation()
+            # Stray temp/backup files break `git stash --include-untracked` on
+            # Windows ("could not write index"). Scrub them before deciding on a
+            # stash, and only stash when there is real JSON data to protect.
+            git.cleanup_temp_artifacts(self.data_dir)
             stashed = False
-            if git.has_head(self.data_dir) and git.is_dirty(self.data_dir):
+            if git.has_head(self.data_dir) and git.dirty_json(self.data_dir):
                 git.run(self.data_dir, "stash", "push", "--include-untracked", "--quiet")
                 stashed = True
             try:
                 if git.has_head(self.data_dir):
                     self.pull_with_recovery()
             finally:
+                # A failed pop (conflicting remote data) must NOT abort the pull:
+                # the imported JSON still comes from the merged tree below. Leave
+                # the stash in place for the user instead of killing the sync.
                 if stashed:
-                    git.run(self.data_dir, "stash", "pop", "--quiet")
+                    git.run(self.data_dir, "stash", "pop", "--quiet", check=False)
             result = data.import_snapshot(worker, self.data_dir)
             mark_observations_seen()
             return result
